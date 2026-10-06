@@ -1,26 +1,28 @@
 package com.example.ioslock
 
+import android.app.*
+import android.content.*
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
-import android.os.Bundle
+import android.os.*
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.*
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Text
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.*
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -29,46 +31,285 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.zIndex
-import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.segmentation.subject.SubjectSegmentation
-import com.google.mlkit.vision.segmentation.subject.SubjectSegmenter
-import com.google.mlkit.vision.segmentation.subject.SubjectSegmenterOptions
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.*
 
+// ============================================================
+// STOCKAGE DES PRÉFÉRENCES
+// ============================================================
+object Prefs {
+    private const val NAME = "ios_lock_prefs"
+    private const val KEY_PIN = "pin"
+    private const val KEY_WALLPAPER = "wallpaper_path"
+    const val DEFAULT_PIN = "1234"
+
+    fun prefs(ctx: Context) = ctx.getSharedPreferences(NAME, Context.MODE_PRIVATE)
+    fun getPin(ctx: Context): String = prefs(ctx).getString(KEY_PIN, DEFAULT_PIN) ?: DEFAULT_PIN
+    fun setPin(ctx: Context, pin: String) = prefs(ctx).edit().putString(KEY_PIN, pin).apply()
+    fun getWallpaperPath(ctx: Context): String? = prefs(ctx).getString(KEY_WALLPAPER, null)
+    fun setWallpaperPath(ctx: Context, path: String?) =
+        prefs(ctx).edit().putString(KEY_WALLPAPER, path).apply()
+}
+
+// ============================================================
+// ACTIVITY PRINCIPALE : le panneau d'édition style iOS
+// ============================================================
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.setFlags(
-            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
-        )
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O_MR1) {
-            setShowWhenLocked(true)
-            setTurnScreenOn(true)
-        }
-        setContent { IOSLockScreen() }
+        setContent { EditorApp() }
     }
 }
 
 @Composable
-fun IOSLockScreen() {
+fun EditorApp() {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
+    var currentScreen by remember { mutableStateOf("home") } // home / edit
+    var wallpaperPath by remember { mutableStateOf(Prefs.getWallpaperPath(context)) }
 
+    when (currentScreen) {
+        "home" -> HomeScreen(
+            wallpaperPath = wallpaperPath,
+            onAddNew = { currentScreen = "edit" },
+            onTest = {
+                context.startActivity(Intent(context, LockActivity::class.java))
+            }
+        )
+        "edit" -> EditScreen(
+            onCancel = { currentScreen = "home" },
+            onSave = { path ->
+                Prefs.setWallpaperPath(context, path)
+                wallpaperPath = path
+                currentScreen = "home"
+            }
+        )
+    }
+}
+
+// ============================================================
+// ÉCRAN D'ACCUEIL : grille de fonds + bouton "+"
+// ============================================================
+@Composable
+fun HomeScreen(
+    wallpaperPath: String?,
+    onAddNew: () -> Unit,
+    onTest: () -> Unit
+) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(Color(0xFF0A0A0F))
+            .padding(16.dp)
+    ) {
+        Spacer(Modifier.height(20.dp))
+        Text("Fond d'écran", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(20.dp))
+
+        // Grille horizontale : "+" + fond actuel
+        Row(
+            Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Bouton "+"
+            Box(
+                Modifier
+                    .size(100.dp, 180.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color(0xFF1C1C22))
+                    .clickable { onAddNew() },
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("+", color = Color(0xFF0A84FF), fontSize = 40.sp, fontWeight = FontWeight.Light)
+                    Spacer(Modifier.height(4.dp))
+                    Text("Ajouter", color = Color(0xFF0A84FF), fontSize = 12.sp)
+                }
+            }
+
+            // Vignette du fond actuel (si existe)
+            wallpaperPath?.let { path ->
+                val bmp = remember(path) { BitmapFactory.decodeFile(path) }
+                bmp?.let {
+                    Box(
+                        Modifier
+                            .size(100.dp, 180.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .border(2.dp, Color(0xFF0A84FF), RoundedCornerShape(16.dp))
+                    ) {
+                        Image(
+                            bitmap = it.asImageBitmap(),
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                        Box(
+                            Modifier
+                                .align(Alignment.BottomCenter)
+                                .fillMaxWidth()
+                                .height(2.dp)
+                                .background(Color(0xFF0A84FF))
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.weight(1f))
+
+        // Bouton Tester
+        Button(
+            onClick = onTest,
+            modifier = Modifier.fillMaxWidth().height(50.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0A84FF)),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Text("Tester l'écran de verrouillage", color = Color.White, fontSize = 15.sp)
+        }
+        Spacer(Modifier.height(16.dp))
+    }
+}
+
+// ============================================================
+// ÉCRAN D'ÉDITION : photo + horloge + boutons
+// ============================================================
+@Composable
+fun EditScreen(onCancel: () -> Unit, onSave: (String) -> Unit) {
+    val context = LocalContext.current
     var photoUri by remember { mutableStateOf<Uri?>(null) }
-    var foregroundBitmap by remember { mutableStateOf<Bitmap?>(null) }
-    var isProcessing by remember { mutableStateOf(false) }
+    var now by remember { mutableStateOf(Date()) }
 
+    LaunchedEffect(Unit) {
+        while (true) { now = Date(); delay(1000) }
+    }
+
+    val pickImage = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri -> uri?.let { photoUri = it } }
+
+    Box(Modifier.fillMaxSize().background(Color.Black)) {
+        // Photo de fond
+        photoUri?.let { uri ->
+            val bmp = remember(uri) { loadBitmapFromUri(context, uri) }
+            bmp?.let {
+                Image(
+                    bitmap = it.asImageBitmap(),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+        } ?: Box(
+            Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color(0xFF2C2C3E), Color(0xFF0A0A15))
+                    )
+                )
+                .clickable { pickImage.launch("image/*") },
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("+", color = Color.White.copy(alpha = 0.6f), fontSize = 60.sp)
+                Text(
+                    "Choisir une photo",
+                    color = Color.White.copy(alpha = 0.6f),
+                    fontSize = 16.sp
+                )
+            }
+        }
+
+        // Horloge centrée
+        Column(
+            Modifier.fillMaxWidth().padding(top = 80.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                SimpleDateFormat("EEEE d MMMM", Locale.FRENCH).format(now),
+                color = Color.White.copy(alpha = 0.9f),
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Medium
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                SimpleDateFormat("HH:mm", Locale.FRANCE).format(now),
+                color = Color.White,
+                fontSize = 90.sp,
+                fontWeight = FontWeight.Light,
+                letterSpacing = (-2).sp
+            )
+        }
+
+        // Barre du bas : Annuler / Changer photo / Ajouter
+        Row(
+            Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(16.dp)
+                .background(Color(0x99000000), RoundedCornerShape(16.dp))
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            TextButton(onClick = onCancel) {
+                Text("Annuler", color = Color.White, fontSize = 15.sp)
+            }
+
+            TextButton(onClick = { pickImage.launch("image/*") }) {
+                Text("Photo", color = Color(0xFF0A84FF), fontSize = 15.sp)
+            }
+
+            Button(
+                onClick = {
+                    if (photoUri != null) {
+                        val path = saveWallpaperLocally(context, photoUri!!)
+                        if (path != null) onSave(path)
+                    }
+                },
+                enabled = photoUri != null,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF0A84FF),
+                    disabledContainerColor = Color(0xFF3A3A3A)
+                ),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("Ajouter", color = Color.White, fontSize = 15.sp)
+            }
+        }
+    }
+}
+
+// ============================================================
+// ÉCRAN DE VERROUILLAGE CUSTOM
+// ============================================================
+class LockActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        // Affiche par-dessus l'écran de verrouillage système
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            setShowWhenLocked(true)
+            setTurnScreenOn(true)
+        }
+        window.setFlags(
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+        )
+        setContent { LockScreen() }
+    }
+
+    override fun onBackPressed() { /* bloqué */ }
+}
+
+@Composable
+fun LockScreen() {
+    val context = LocalContext.current
     var now by remember { mutableStateOf(Date()) }
     var entered by remember { mutableStateOf("") }
     var error by remember { mutableStateOf(false) }
-    val correctPin = "1234"
+    val correctPin = remember { Prefs.getPin(context) }
 
     LaunchedEffect(Unit) {
         while (true) { now = Date(); delay(1000) }
@@ -78,169 +319,108 @@ fun IOSLockScreen() {
         if (error) { delay(600); entered = ""; error = false }
     }
 
-    val pickImage = rememberLauncherForActivityResult(
-        ActivityResultContracts.GetContent()
-    ) { uri ->
-        uri?.let {
-            photoUri = it
-            isProcessing = true
-            scope.launch {
-                foregroundBitmap = withContext(Dispatchers.IO) {
-                    segmentSubject(context, it)
-                }
-                isProcessing = false
-            }
-        }
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    listOf(Color(0xFF1C1C2E), Color(0xFF0A0A15), Color.Black)
-                )
-            )
-    ) {
-        photoUri?.let { uri ->
-            val bmp = remember(uri) { loadBitmap(context, uri) }
+    Box(Modifier.fillMaxSize().background(Color.Black)) {
+        // Fond sauvegardé
+        val path = remember { Prefs.getWallpaperPath(context) }
+        path?.let {
+            val bmp = remember(it) { BitmapFactory.decodeFile(it) }
             bmp?.let {
                 Image(
                     bitmap = it.asImageBitmap(),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .then(
-                            if (foregroundBitmap != null) Modifier.blur(20.dp) else Modifier
-                        )
+                    modifier = Modifier.fillMaxSize()
                 )
             }
-        }
+        } ?: Box(
+            Modifier.fillMaxSize().background(
+                Brush.verticalGradient(listOf(Color(0xFF1C1C2E), Color.Black))
+            )
+        )
 
         Column(
-            modifier = Modifier.fillMaxSize().zIndex(1f),
+            Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Spacer(Modifier.height(80.dp))
             Text(
-                text = SimpleDateFormat("EEEE d MMMM", Locale.FRENCH).format(now),
-                color = Color.White.copy(alpha = 0.85f),
-                fontSize = 20.sp,
+                SimpleDateFormat("EEEE d MMMM", Locale.FRENCH).format(now),
+                color = Color.White.copy(alpha = 0.9f),
+                fontSize = 18.sp,
                 fontWeight = FontWeight.Medium
             )
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(4.dp))
             Text(
-                text = SimpleDateFormat("HH:mm", Locale.FRANCE).format(now),
+                SimpleDateFormat("HH:mm", Locale.FRANCE).format(now),
                 color = Color.White,
-                fontSize = 96.sp,
+                fontSize = 90.sp,
                 fontWeight = FontWeight.Light,
                 letterSpacing = (-2).sp
             )
-        }
 
-        foregroundBitmap?.let { fg ->
-            Image(
-                bitmap = fg.asImageBitmap(),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize().zIndex(2f)
-            )
-        }
-
-        Column(
-            modifier = Modifier.fillMaxSize().zIndex(3f),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
             Spacer(Modifier.weight(1f))
 
-            Text(
-                text = if (photoUri == null) "Choisir un fond" else "Changer le fond",
-                color = Color.White.copy(alpha = 0.7f),
-                fontSize = 14.sp,
-                modifier = Modifier
-                    .clickable { pickImage.launch("image/*") }
-                    .padding(8.dp)
-            )
-
-            Spacer(Modifier.height(24.dp))
             PinDots(entered.length, 4, error)
             Spacer(Modifier.height(24.dp))
-
             Keypad(
                 onDigit = { d ->
                     if (entered.length < 4 && !error) {
                         entered += d
-                        if (entered.length == 4 && entered != correctPin) {
-                            error = true
+                        if (entered.length == 4) {
+                            if (entered == correctPin) {
+                                (context as? ComponentActivity)?.finish()
+                            } else error = true
                         }
                     }
                 },
                 onDelete = { if (entered.isNotEmpty()) entered = entered.dropLast(1) }
             )
-
             Spacer(Modifier.height(40.dp))
         }
+    }
+}
 
-        if (isProcessing) {
-            Box(
-                Modifier.fillMaxSize().zIndex(4f)
-                    .background(Color.Black.copy(alpha = 0.6f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("Analyse de l'image...", color = Color.White, fontSize = 18.sp)
+// ============================================================
+// BROADCAST RECEIVER : affiche l'écran custom au réveil
+// ============================================================
+class ScreenReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        when (intent.action) {
+            Intent.ACTION_SCREEN_ON,
+            Intent.ACTION_USER_PRESENT -> {
+                val i = Intent(context, LockActivity::class.java).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                }
+                context.startActivity(i)
             }
         }
     }
 }
 
-suspend fun segmentSubject(context: android.content.Context, uri: Uri): Bitmap? {
-    return try {
-        val inputImage = InputImage.fromFilePath(context, uri)
-        val options = SubjectSegmenterOptions.Builder()
-            .enableForegroundBitmap()
-            .build()
-        val segmenter: SubjectSegmenter = SubjectSegmentation.getClient(options)
-        val task = segmenter.process(inputImage)
-        val result = withContext(Dispatchers.IO) {
-            com.google.android.gms.tasks.Tasks.await(task)
-        }
-        val fgBitmap = result.foregroundBitmap
-        segmenter.close()
-        fgBitmap
-    } catch (e: Exception) {
-        e.printStackTrace()
-        null
-    }
-}
-
-fun loadBitmap(context: android.content.Context, uri: Uri): Bitmap? {
-    return try {
-        context.contentResolver.openInputStream(uri)?.use { input ->
-            android.graphics.BitmapFactory.decodeStream(input)
-        }
-    } catch (e: Exception) { null }
-}
-
+// ============================================================
+// UI : clavier + points
+// ============================================================
 @Composable
 fun PinDots(count: Int, total: Int, isError: Boolean) {
-    val color by animateColorAsState(
-        if (isError) Color(0xFFFF453A) else Color.White
-    )
-    Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+    Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
         repeat(total) { i ->
             val filled = i < count
-            val scale by animateFloatAsState(
-                if (filled) 1f else 0.6f,
-                spring(dampingRatio = 0.5f, stiffness = 500f),
-                label = "dot"
-            )
             Box(
                 Modifier
-                    .size(16.dp)
-                    .scale(scale)
-                    .background(if (filled) color else Color.Transparent, CircleShape)
-                    .border(1.5.dp, color.copy(alpha = if (filled) 1f else 0.6f), CircleShape)
+                    .size(14.dp)
+                    .background(
+                        when {
+                            isError -> Color(0xFFFF453A)
+                            filled -> Color.White
+                            else -> Color.Transparent
+                        },
+                        CircleShape
+                    )
+                    .border(
+                        1.5.dp,
+                        if (isError) Color(0xFFFF453A) else Color.White.copy(alpha = 0.6f),
+                        CircleShape
+                    )
             )
         }
     }
@@ -255,15 +435,27 @@ fun Keypad(onDigit: (String) -> Unit, onDelete: () -> Unit) {
         listOf("", "0", "⌫")
     )
     Column(
-        verticalArrangement = Arrangement.spacedBy(20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         rows.forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(28.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                 row.forEach { key ->
-                    if (key.isEmpty()) Spacer(Modifier.size(76.dp))
-                    else GlassKey(key, key == "⌫") {
-                        if (key == "⌫") onDelete() else onDigit(key)
+                    if (key.isEmpty()) Spacer(Modifier.size(70.dp))
+                    else Box(
+                        Modifier
+                            .size(70.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.15f))
+                            .clickable { if (key == "⌫") onDelete() else onDigit(key) },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            key,
+                            color = Color.White,
+                            fontSize = if (key == "⌫") 24.sp else 28.sp,
+                            fontWeight = FontWeight.Light
+                        )
                     }
                 }
             }
@@ -271,36 +463,20 @@ fun Keypad(onDigit: (String) -> Unit, onDelete: () -> Unit) {
     }
 }
 
-@Composable
-fun GlassKey(label: String, isDelete: Boolean, onClick: () -> Unit) {
-    Box(
-        Modifier
-            .size(76.dp)
-            .clip(CircleShape)
-            .background(
-                Brush.radialGradient(
-                    listOf(
-                        Color.White.copy(alpha = 0.22f),
-                        Color.White.copy(alpha = 0.10f)
-                    )
-                )
-            )
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        if (isDelete) {
-            Text("⌫", color = Color.White, fontSize = 26.sp)
-        } else {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(label, color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Light)
-                val subs = mapOf(
-                    "2" to "ABC", "3" to "DEF", "4" to "GHI", "5" to "JKL",
-                    "6" to "MNO", "7" to "PQRS", "8" to "TUV", "9" to "WXYZ"
-                )
-                subs[label]?.let {
-                    Text(it, color = Color.White.copy(alpha = 0.7f), fontSize = 9.sp, letterSpacing = 2.sp)
-                }
-            }
+// ============================================================
+// HELPERS
+// ============================================================
+fun loadBitmapFromUri(context: Context, uri: Uri): Bitmap? = try {
+    context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
+} catch (e: Exception) { null }
+
+fun saveWallpaperLocally(context: Context, uri: Uri): String? {
+    return try {
+        val bmp = loadBitmapFromUri(context, uri) ?: return null
+        val file = File(context.filesDir, "wallpaper.jpg")
+        FileOutputStream(file).use { out ->
+            bmp.compress(Bitmap.CompressFormat.JPEG, 90, out)
         }
-    }
+        file.absolutePath
+    } catch (e: Exception) { null }
 }
