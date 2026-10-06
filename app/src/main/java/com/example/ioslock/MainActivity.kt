@@ -13,14 +13,15 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -33,7 +34,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -49,13 +53,9 @@ import java.util.*
 // ============================================================
 object Prefs {
     private const val NAME = "ios_lock_prefs"
-    private const val KEY_PIN = "pin"
     private const val KEY_WALLPAPER = "wallpaper_path"
-    const val DEFAULT_PIN = "1234"
 
     fun prefs(ctx: Context) = ctx.getSharedPreferences(NAME, Context.MODE_PRIVATE)
-    fun getPin(ctx: Context): String = prefs(ctx).getString(KEY_PIN, DEFAULT_PIN) ?: DEFAULT_PIN
-    fun setPin(ctx: Context, pin: String) = prefs(ctx).edit().putString(KEY_PIN, pin).apply()
     fun getWallpaperPath(ctx: Context): String? = prefs(ctx).getString(KEY_WALLPAPER, null)
     fun setWallpaperPath(ctx: Context, path: String?) =
         prefs(ctx).edit().putString(KEY_WALLPAPER, path).apply()
@@ -79,7 +79,7 @@ fun EditorApp() {
 
     val permLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
-    ) { /* résultats ignorés */ }
+    ) { }
 
     LaunchedEffect(Unit) {
         val perms = mutableListOf<String>()
@@ -142,7 +142,6 @@ fun HomeScreen(
             Modifier.horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Bouton "+"
             Box(
                 Modifier
                     .size(100.dp, 180.dp)
@@ -158,7 +157,6 @@ fun HomeScreen(
                 }
             }
 
-            // Vignette du fond actuel
             wallpaperPath?.let { path ->
                 val bmp = remember(path) { BitmapFactory.decodeFile(path) }
                 bmp?.let {
@@ -221,7 +219,6 @@ fun EditScreen(onCancel: () -> Unit, onSave: (String) -> Unit) {
     ) { uri -> uri?.let { photoUri = it } }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
-        // Photo ou placeholder
         val uri = photoUri
         if (uri != null) {
             val bmp = remember(uri) { loadBitmapFromUri(context, uri) }
@@ -232,11 +229,6 @@ fun EditScreen(onCancel: () -> Unit, onSave: (String) -> Unit) {
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
                 )
-            } ?: Box(
-                Modifier.fillMaxSize().background(Color(0xFF1C1C22)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("Erreur de chargement", color = Color.White)
             }
         } else {
             Box(
@@ -252,16 +244,11 @@ fun EditScreen(onCancel: () -> Unit, onSave: (String) -> Unit) {
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("+", color = Color.White.copy(alpha = 0.6f), fontSize = 60.sp)
-                    Text(
-                        "Choisir une photo",
-                        color = Color.White.copy(alpha = 0.6f),
-                        fontSize = 16.sp
-                    )
+                    Text("Choisir une photo", color = Color.White.copy(alpha = 0.6f), fontSize = 16.sp)
                 }
             }
         }
 
-        // Horloge
         Column(
             Modifier.fillMaxWidth().padding(top = 80.dp),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -282,7 +269,6 @@ fun EditScreen(onCancel: () -> Unit, onSave: (String) -> Unit) {
             )
         }
 
-        // Barre du bas
         Row(
             Modifier
                 .align(Alignment.BottomCenter)
@@ -296,11 +282,9 @@ fun EditScreen(onCancel: () -> Unit, onSave: (String) -> Unit) {
             TextButton(onClick = onCancel) {
                 Text("Annuler", color = Color.White, fontSize = 15.sp)
             }
-
             TextButton(onClick = { pickImage.launch("image/*") }) {
                 Text("Photo", color = Color(0xFF0A84FF), fontSize = 15.sp)
             }
-
             Button(
                 onClick = {
                     val u = photoUri
@@ -323,7 +307,7 @@ fun EditScreen(onCancel: () -> Unit, onSave: (String) -> Unit) {
 }
 
 // ============================================================
-// ÉCRAN DE VERROUILLAGE
+// ÉCRAN DE VERROUILLAGE — SWIPE VERS LE HAUT
 // ============================================================
 class LockActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -347,19 +331,55 @@ class LockActivity : ComponentActivity() {
 fun LockScreen() {
     val context = LocalContext.current
     var now by remember { mutableStateOf(Date()) }
-    var entered by remember { mutableStateOf("") }
-    var error by remember { mutableStateOf(false) }
-    val correctPin = remember { Prefs.getPin(context) }
+    val configuration = LocalConfiguration.current
+    val screenHeightPx = with(androidx.compose.ui.platform.LocalDensity.current) {
+        configuration.screenHeightDp.dp.toPx()
+    }
+
+    // Position Y de l'écran (0 = repos, -screenHeight = déverrouillé)
+    var dragOffset by remember { mutableStateOf(0f) }
+    var isDismissing by remember { mutableStateOf(false) }
+
+    val animatedOffset by animateFloatAsState(
+        targetValue = if (isDismissing) -screenHeightPx else dragOffset.toFloat(),
+        animationSpec = androidx.compose.animation.core.tween(300),
+        label = "offset",
+        finishedListener = {
+            if (isDismissing) (context as? ComponentActivity)?.finish()
+        }
+    )
 
     LaunchedEffect(Unit) {
         while (true) { now = Date(); delay(1000) }
     }
 
-    LaunchedEffect(error) {
-        if (error) { delay(600); entered = ""; error = false }
-    }
-
-    Box(Modifier.fillMaxSize().background(Color.Black)) {
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+            .graphicsLayer { translationY = animatedOffset }
+            .pointerInput(Unit) {
+                detectVerticalDragGestures(
+                    onDragEnd = {
+                        // Si on a swipé assez haut, on déverrouille
+                        if (dragOffset < -screenHeightPx * 0.25f) {
+                            isDismissing = true
+                        } else {
+                            // Sinon retour à la position initiale
+                            dragOffset = 0f
+                        }
+                    },
+                    onDragCancel = { dragOffset = 0f }
+                ) { _, dragAmount ->
+                    // dragAmount est négatif quand on va vers le haut
+                    if (!isDismissing) {
+                        val newOffset = (dragOffset + dragAmount).coerceIn(-screenHeightPx, 0f)
+                        dragOffset = newOffset
+                    }
+                }
+            }
+    ) {
+        // Fond
         val path = remember { Prefs.getWallpaperPath(context) }
         val bmp = path?.let { remember(it) { BitmapFactory.decodeFile(it) } }
         if (bmp != null) {
@@ -399,20 +419,19 @@ fun LockScreen() {
 
             Spacer(Modifier.weight(1f))
 
-            PinDots(entered.length, 4, error)
-            Spacer(Modifier.height(24.dp))
-            Keypad(
-                onDigit = { d ->
-                    if (entered.length < 4 && !error) {
-                        entered += d
-                        if (entered.length == 4) {
-                            if (entered == correctPin) {
-                                (context as? ComponentActivity)?.finish()
-                            } else error = true
-                        }
-                    }
-                },
-                onDelete = { if (entered.isNotEmpty()) entered = entered.dropLast(1) }
+            // Indicateur de swipe (petite barre blanche en bas)
+            Box(
+                Modifier
+                    .width(140.dp)
+                    .height(5.dp)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(Color.White.copy(alpha = 0.8f))
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "Tirer vers le haut",
+                color = Color.White.copy(alpha = 0.7f),
+                fontSize = 12.sp
             )
             Spacer(Modifier.height(40.dp))
         }
@@ -420,7 +439,7 @@ fun LockScreen() {
 }
 
 // ============================================================
-// RECEIVER ÉCRAN
+// RECEIVER
 // ============================================================
 class ScreenReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -431,72 +450,6 @@ class ScreenReceiver : BroadcastReceiver() {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
                 }
                 context.startActivity(i)
-            }
-        }
-    }
-}
-
-// ============================================================
-// UI : POINTS + CLAVIER
-// ============================================================
-@Composable
-fun PinDots(count: Int, total: Int, isError: Boolean) {
-    Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-        repeat(total) { i ->
-            val filled = i < count
-            Box(
-                Modifier
-                    .size(14.dp)
-                    .background(
-                        when {
-                            isError -> Color(0xFFFF453A)
-                            filled -> Color.White
-                            else -> Color.Transparent
-                        },
-                        CircleShape
-                    )
-                    .border(
-                        1.5.dp,
-                        if (isError) Color(0xFFFF453A) else Color.White.copy(alpha = 0.6f),
-                        CircleShape
-                    )
-            )
-        }
-    }
-}
-
-@Composable
-fun Keypad(onDigit: (String) -> Unit, onDelete: () -> Unit) {
-    val rows = listOf(
-        listOf("1", "2", "3"),
-        listOf("4", "5", "6"),
-        listOf("7", "8", "9"),
-        listOf("", "0", "⌫")
-    )
-    Column(
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        rows.forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                row.forEach { key ->
-                    if (key.isEmpty()) Spacer(Modifier.size(70.dp))
-                    else Box(
-                        Modifier
-                            .size(70.dp)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.15f))
-                            .clickable { if (key == "⌫") onDelete() else onDigit(key) },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            key,
-                            color = Color.White,
-                            fontSize = if (key == "⌫") 24.sp else 28.sp,
-                            fontWeight = FontWeight.Light
-                        )
-                    }
-                }
             }
         }
     }
