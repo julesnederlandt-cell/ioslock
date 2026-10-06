@@ -1,24 +1,31 @@
 package com.example.ioslock
 
+import android.Manifest
 import android.app.*
 import android.content.*
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.*
+import android.provider.Settings
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.*
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,7 +45,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 // ============================================================
-// STOCKAGE DES PRÉFÉRENCES
+// PRÉFÉRENCES
 // ============================================================
 object Prefs {
     private const val NAME = "ios_lock_prefs"
@@ -55,7 +62,7 @@ object Prefs {
 }
 
 // ============================================================
-// ACTIVITY PRINCIPALE : le panneau d'édition style iOS
+// ACTIVITY PRINCIPALE
 // ============================================================
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -67,8 +74,23 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun EditorApp() {
     val context = LocalContext.current
-    var currentScreen by remember { mutableStateOf("home") } // home / edit
+    var currentScreen by remember { mutableStateOf("home") }
     var wallpaperPath by remember { mutableStateOf(Prefs.getWallpaperPath(context)) }
+
+    val permLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { /* résultats ignorés */ }
+
+    LaunchedEffect(Unit) {
+        val perms = mutableListOf<String>()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            perms.add(Manifest.permission.READ_MEDIA_IMAGES)
+            perms.add(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            perms.add(Manifest.permission.READ_EXTERNAL_STORAGE)
+        }
+        permLauncher.launch(perms.toTypedArray())
+    }
 
     when (currentScreen) {
         "home" -> HomeScreen(
@@ -76,6 +98,13 @@ fun EditorApp() {
             onAddNew = { currentScreen = "edit" },
             onTest = {
                 context.startActivity(Intent(context, LockActivity::class.java))
+            },
+            onRequestOverlay = {
+                val intent = Intent(
+                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:${context.packageName}")
+                )
+                context.startActivity(intent)
             }
         )
         "edit" -> EditScreen(
@@ -90,13 +119,14 @@ fun EditorApp() {
 }
 
 // ============================================================
-// ÉCRAN D'ACCUEIL : grille de fonds + bouton "+"
+// ÉCRAN D'ACCUEIL
 // ============================================================
 @Composable
 fun HomeScreen(
     wallpaperPath: String?,
     onAddNew: () -> Unit,
-    onTest: () -> Unit
+    onTest: () -> Unit,
+    onRequestOverlay: () -> Unit
 ) {
     Column(
         Modifier
@@ -108,7 +138,6 @@ fun HomeScreen(
         Text("Fond d'écran", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(20.dp))
 
-        // Grille horizontale : "+" + fond actuel
         Row(
             Modifier.horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -129,7 +158,7 @@ fun HomeScreen(
                 }
             }
 
-            // Vignette du fond actuel (si existe)
+            // Vignette du fond actuel
             wallpaperPath?.let { path ->
                 val bmp = remember(path) { BitmapFactory.decodeFile(path) }
                 bmp?.let {
@@ -145,13 +174,6 @@ fun HomeScreen(
                             contentScale = ContentScale.Crop,
                             modifier = Modifier.fillMaxSize()
                         )
-                        Box(
-                            Modifier
-                                .align(Alignment.BottomCenter)
-                                .fillMaxWidth()
-                                .height(2.dp)
-                                .background(Color(0xFF0A84FF))
-                        )
                     }
                 }
             }
@@ -159,7 +181,16 @@ fun HomeScreen(
 
         Spacer(Modifier.weight(1f))
 
-        // Bouton Tester
+        Button(
+            onClick = onRequestOverlay,
+            modifier = Modifier.fillMaxWidth().height(50.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3A3A3C)),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Text("Autoriser l'affichage par-dessus", color = Color.White, fontSize = 14.sp)
+        }
+        Spacer(Modifier.height(12.dp))
+
         Button(
             onClick = onTest,
             modifier = Modifier.fillMaxWidth().height(50.dp),
@@ -173,7 +204,7 @@ fun HomeScreen(
 }
 
 // ============================================================
-// ÉCRAN D'ÉDITION : photo + horloge + boutons
+// ÉCRAN D'ÉDITION
 // ============================================================
 @Composable
 fun EditScreen(onCancel: () -> Unit, onSave: (String) -> Unit) {
@@ -190,8 +221,9 @@ fun EditScreen(onCancel: () -> Unit, onSave: (String) -> Unit) {
     ) { uri -> uri?.let { photoUri = it } }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
-        // Photo de fond
-        photoUri?.let { uri ->
+        // Photo ou placeholder
+        val uri = photoUri
+        if (uri != null) {
             val bmp = remember(uri) { loadBitmapFromUri(context, uri) }
             bmp?.let {
                 Image(
@@ -200,29 +232,36 @@ fun EditScreen(onCancel: () -> Unit, onSave: (String) -> Unit) {
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
                 )
+            } ?: Box(
+                Modifier.fillMaxSize().background(Color(0xFF1C1C22)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("Erreur de chargement", color = Color.White)
             }
-        } ?: Box(
-            Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        listOf(Color(0xFF2C2C3E), Color(0xFF0A0A15))
+        } else {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(Color(0xFF2C2C3E), Color(0xFF0A0A15))
+                        )
                     )
-                )
-                .clickable { pickImage.launch("image/*") },
-            contentAlignment = Alignment.Center
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("+", color = Color.White.copy(alpha = 0.6f), fontSize = 60.sp)
-                Text(
-                    "Choisir une photo",
-                    color = Color.White.copy(alpha = 0.6f),
-                    fontSize = 16.sp
-                )
+                    .clickable { pickImage.launch("image/*") },
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("+", color = Color.White.copy(alpha = 0.6f), fontSize = 60.sp)
+                    Text(
+                        "Choisir une photo",
+                        color = Color.White.copy(alpha = 0.6f),
+                        fontSize = 16.sp
+                    )
+                }
             }
         }
 
-        // Horloge centrée
+        // Horloge
         Column(
             Modifier.fillMaxWidth().padding(top = 80.dp),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -243,7 +282,7 @@ fun EditScreen(onCancel: () -> Unit, onSave: (String) -> Unit) {
             )
         }
 
-        // Barre du bas : Annuler / Changer photo / Ajouter
+        // Barre du bas
         Row(
             Modifier
                 .align(Alignment.BottomCenter)
@@ -264,8 +303,9 @@ fun EditScreen(onCancel: () -> Unit, onSave: (String) -> Unit) {
 
             Button(
                 onClick = {
-                    if (photoUri != null) {
-                        val path = saveWallpaperLocally(context, photoUri!!)
+                    val u = photoUri
+                    if (u != null) {
+                        val path = saveWallpaperLocally(context, u)
                         if (path != null) onSave(path)
                     }
                 },
@@ -283,12 +323,11 @@ fun EditScreen(onCancel: () -> Unit, onSave: (String) -> Unit) {
 }
 
 // ============================================================
-// ÉCRAN DE VERROUILLAGE CUSTOM
+// ÉCRAN DE VERROUILLAGE
 // ============================================================
 class LockActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Affiche par-dessus l'écran de verrouillage système
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true)
             setTurnScreenOn(true)
@@ -300,6 +339,7 @@ class LockActivity : ComponentActivity() {
         setContent { LockScreen() }
     }
 
+    @Deprecated("Deprecated in Java")
     override fun onBackPressed() { /* bloqué */ }
 }
 
@@ -320,23 +360,22 @@ fun LockScreen() {
     }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
-        // Fond sauvegardé
         val path = remember { Prefs.getWallpaperPath(context) }
-        path?.let {
-            val bmp = remember(it) { BitmapFactory.decodeFile(it) }
-            bmp?.let {
-                Image(
-                    bitmap = it.asImageBitmap(),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
-        } ?: Box(
-            Modifier.fillMaxSize().background(
-                Brush.verticalGradient(listOf(Color(0xFF1C1C2E), Color.Black))
+        val bmp = path?.let { remember(it) { BitmapFactory.decodeFile(it) } }
+        if (bmp != null) {
+            Image(
+                bitmap = bmp.asImageBitmap(),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
             )
-        )
+        } else {
+            Box(
+                Modifier.fillMaxSize().background(
+                    Brush.verticalGradient(listOf(Color(0xFF1C1C2E), Color.Black))
+                )
+            )
+        }
 
         Column(
             Modifier.fillMaxSize(),
@@ -381,7 +420,7 @@ fun LockScreen() {
 }
 
 // ============================================================
-// BROADCAST RECEIVER : affiche l'écran custom au réveil
+// RECEIVER ÉCRAN
 // ============================================================
 class ScreenReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -398,7 +437,7 @@ class ScreenReceiver : BroadcastReceiver() {
 }
 
 // ============================================================
-// UI : clavier + points
+// UI : POINTS + CLAVIER
 // ============================================================
 @Composable
 fun PinDots(count: Int, total: Int, isError: Boolean) {
