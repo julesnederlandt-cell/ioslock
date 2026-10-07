@@ -8,7 +8,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -19,26 +18,30 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.ioslock.util.ImageUtils
 import kotlinx.coroutines.delay
-import java.text.SimpleDateFormat
 import java.util.Date
-import java.util.Locale
 
 @Composable
 fun LockScreen(
     wallpaperPath: String?,
-    subjectPath: String?
+    subjectPath: String?,
+    clockFont: String,
+    clockColor: String,
+    clockScale: Float,
+    clock24h: Boolean,
+    clockPositionY: Float
 ) {
     val context = LocalContext.current
     var now by remember { mutableStateOf(Date()) }
     val configuration = LocalConfiguration.current
-    val screenHeightPx = with(LocalDensity.current) {
+    val density = LocalDensity.current
+    val screenHeightPx = with(density) {
         configuration.screenHeightDp.dp.toPx()
     }
 
@@ -61,7 +64,6 @@ fun LockScreen(
         }
     }
 
-    // Charge les bitmaps une fois
     val wallpaperBmp = remember(wallpaperPath) {
         wallpaperPath?.let { ImageUtils.loadFromPath(it) }
     }
@@ -70,10 +72,13 @@ fun LockScreen(
     }
     val hasDepth = subjectBmp != null
 
+    var actualHeightPx by remember { mutableStateOf(0f) }
+
     Box(
         Modifier
             .fillMaxSize()
             .background(Color.Black)
+            .onSizeChanged { actualHeightPx = it.height.toFloat() }
             .graphicsLayer { translationY = animatedOffset }
             .pointerInput(Unit) {
                 detectVerticalDragGestures(
@@ -96,12 +101,9 @@ fun LockScreen(
 
         // ========================================================
         // COUCHE 1 : FOND
-        // Si Depth Effect actif → photo floutée + assombrie
-        // Sinon → photo normale
         // ========================================================
         if (wallpaperBmp != null) {
             if (hasDepth && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                // Android 12+ avec effet profondeur : photo floutée
                 Image(
                     bitmap = wallpaperBmp.asImageBitmap(),
                     contentDescription = null,
@@ -110,14 +112,12 @@ fun LockScreen(
                         .fillMaxSize()
                         .blur(20.dp)
                 )
-                // Voile sombre pour faire ressortir horloge + sujet
                 Box(
                     Modifier
                         .fillMaxSize()
                         .background(Color.Black.copy(alpha = 0.25f))
                 )
             } else {
-                // Sans depth ou Android < 12 : photo normale
                 Image(
                     bitmap = wallpaperBmp.asImageBitmap(),
                     contentDescription = null,
@@ -126,7 +126,6 @@ fun LockScreen(
                 )
             }
         } else {
-            // Pas de fond : dégradé par défaut
             Box(
                 Modifier.fillMaxSize().background(
                     Brush.verticalGradient(listOf(Color(0xFF1C1C2E), Color.Black))
@@ -135,33 +134,34 @@ fun LockScreen(
         }
 
         // ========================================================
-        // COUCHE 2 : HORLOGE (derrière le sujet)
+        // COUCHE 2 : HORLOGE (position personnalisée)
         // ========================================================
-        Column(
-            Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally
+        val clockY = if (actualHeightPx > 0f) {
+            (actualHeightPx * clockPositionY).coerceIn(
+                with(density) { 60.dp.toPx() },
+                actualHeightPx - with(density) { 350.dp.toPx() }
+            )
+        } else {
+            with(density) { 80.dp.toPx() }
+        }
+
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .absoluteOffset(y = with(density) { clockY.toDp() }),
+            contentAlignment = Alignment.TopCenter
         ) {
-            Spacer(Modifier.height(80.dp))
-            Text(
-                SimpleDateFormat("EEEE d MMMM", Locale.FRENCH).format(now),
-                color = IOSColors.TextPrimary.copy(alpha = 0.95f),
-                fontSize = IOSTypography.DateSize,
-                fontWeight = FontWeight.Medium
+            ClockText(
+                date = now,
+                fontKey = clockFont,
+                colorKey = clockColor,
+                scale = clockScale,
+                is24h = clock24h
             )
-            Spacer(Modifier.height(4.dp))
-            Text(
-                SimpleDateFormat("HH:mm", Locale.FRANCE).format(now),
-                color = IOSColors.TextPrimary,
-                fontSize = IOSTypography.ClockSize,
-                fontWeight = FontWeight.Light,
-                letterSpacing = IOSTypography.ClockLetterSpacing
-            )
-            Spacer(Modifier.weight(1f))
-            Spacer(Modifier.height(40.dp))
         }
 
         // ========================================================
-        // COUCHE 3 : SUJET DÉCOUPÉ (devant l'horloge)
+        // COUCHE 3 : SUJET DÉCOUPÉ
         // ========================================================
         if (subjectBmp != null) {
             Image(
