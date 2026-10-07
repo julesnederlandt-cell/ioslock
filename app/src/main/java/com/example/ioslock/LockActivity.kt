@@ -39,6 +39,7 @@ class LockActivity : ComponentActivity() {
             var glassThickness by remember { mutableStateOf(WallpaperStore.DEFAULT_GLASS_THICKNESS) }
             var glassTinted by remember { mutableStateOf(WallpaperStore.DEFAULT_GLASS_TINTED == 1) }
             var hapticEnabled by remember { mutableStateOf(WallpaperStore.DEFAULT_HAPTIC_ENABLED == 1) }
+            var clockStyle by remember { mutableStateOf(WallpaperStore.DEFAULT_CLOCK_STYLE) }
 
             LaunchedEffect(Unit) { store.wallpaperPathFlow.collect { wallpaperPath = it } }
             LaunchedEffect(Unit) { store.subjectPathFlow.collect { subjectPath = it } }
@@ -51,6 +52,7 @@ class LockActivity : ComponentActivity() {
             LaunchedEffect(Unit) { store.glassThicknessFlow.collect { glassThickness = it } }
             LaunchedEffect(Unit) { store.glassTintedFlow.collect { glassTinted = it } }
             LaunchedEffect(Unit) { store.hapticEnabledFlow.collect { hapticEnabled = it } }
+            LaunchedEffect(Unit) { store.clockStyleFlow.collect { clockStyle = it } }
 
             LockScreen(
                 wallpaperPath = wallpaperPath,
@@ -63,7 +65,8 @@ class LockActivity : ComponentActivity() {
                 glassIntensity = glassIntensity,
                 glassThickness = glassThickness,
                 glassTinted = glassTinted,
-                hapticEnabled = hapticEnabled
+                hapticEnabled = hapticEnabled,
+                clockStyle = clockStyle
             )
         }
     }
