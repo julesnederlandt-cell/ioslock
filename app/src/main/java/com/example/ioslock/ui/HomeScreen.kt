@@ -1,21 +1,22 @@
 package com.example.ioslock.ui
 
+import android.os.Build
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -30,62 +31,130 @@ fun HomeScreen(
     onTest: () -> Unit,
     onRequestOverlay: () -> Unit
 ) {
-    Column(
-        Modifier
-            .fillMaxSize()
-            .background(IOSColors.Background)
-            .padding(IOSDimensions.Padding)
-    ) {
-        Spacer(Modifier.height(20.dp))
-        Text(
-            "Fond d'écran",
-            color = IOSColors.TextPrimary,
-            fontSize = IOSTypography.TitleSize,
-            fontWeight = FontWeight.Bold
-        )
-        Spacer(Modifier.height(20.dp))
+    Box(Modifier.fillMaxSize().background(IOSColors.Background)) {
 
-        Row(
-            Modifier.horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            // Bouton "+"
-            Box(
-                Modifier
-                    .size(100.dp, 180.dp)
-                    .clip(RoundedCornerShape(IOSDimensions.CornerRadius))
-                    .background(IOSColors.Surface)
-                    .clickable { onAddNew() },
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        "+",
-                        color = IOSColors.Accent,
-                        fontSize = 40.sp,
-                        fontWeight = FontWeight.Light
+        // ========================================================
+        // COUCHE 1 : FOND PHOTO FLOUTÉ
+        // ========================================================
+        val bgBitmap = remember(wallpaperPath) {
+            wallpaperPath?.let { ImageUtils.loadFromPath(it) }
+        }
+
+        if (bgBitmap != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            // Android 12+ : vrai flou
+            Image(
+                bitmap = bgBitmap.asImageBitmap(),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .blur(40.dp)
+            )
+        } else if (bgBitmap != null) {
+            // Fallback : pas de flou mais on assombrit
+            Image(
+                bitmap = bgBitmap.asImageBitmap(),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+
+        // ========================================================
+        // COUCHE 2 : VOILE SOMBRE PAR-DESSUS LA PHOTO
+        // ========================================================
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            Color.Black.copy(alpha = 0.45f),
+                            Color.Black.copy(alpha = 0.75f)
+                        )
                     )
-                    Spacer(Modifier.height(4.dp))
-                    Text("Ajouter", color = IOSColors.Accent, fontSize = 12.sp)
-                }
-            }
+                )
+        )
 
-            // Vignette du fond actuel
-            wallpaperPath?.let { path ->
-                val bmp = remember(path) { ImageUtils.loadFromPath(path) }
-                bmp?.let {
+        // ========================================================
+        // COUCHE 3 : CONTENU
+        // ========================================================
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(horizontal = 20.dp)
+        ) {
+            Spacer(Modifier.height(40.dp))
+
+            // Titre style iOS
+            Text(
+                "Fond d'écran",
+                color = IOSColors.TextPrimary,
+                fontSize = IOSTypography.LargeTitleSize,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(Modifier.height(24.dp))
+
+            // ====================================================
+            // CARROUSEL DE VIGNETTES
+            // ====================================================
+            Row(
+                Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                // Bouton "+"
+                Box(
+                    Modifier
+                        .size(105.dp, 190.dp)
+                        .clip(RoundedCornerShape(IOSDimensions.CornerRadiusLarge))
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(
+                                    Color.White.copy(alpha = 0.18f),
+                                    Color.White.copy(alpha = 0.08f)
+                                )
+                            )
+                        )
+                        .border(
+                            0.5.dp,
+                            IOSColors.GlassBorder,
+                            RoundedCornerShape(IOSDimensions.CornerRadiusLarge)
+                        )
+                        .clickableNoRipple { onAddNew() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            "+",
+                            color = IOSColors.TextPrimary,
+                            fontSize = 44.sp,
+                            fontWeight = FontWeight.Light
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            "Ajouter",
+                            color = IOSColors.TextSecondary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+
+                // Vignette du fond actuel
+                if (bgBitmap != null) {
                     Box(
                         Modifier
-                            .size(100.dp, 180.dp)
-                            .clip(RoundedCornerShape(IOSDimensions.CornerRadius))
+                            .size(105.dp, 190.dp)
+                            .clip(RoundedCornerShape(IOSDimensions.CornerRadiusLarge))
                             .border(
                                 2.dp,
                                 IOSColors.Accent,
-                                RoundedCornerShape(IOSDimensions.CornerRadius)
+                                RoundedCornerShape(IOSDimensions.CornerRadiusLarge)
                             )
                     ) {
                         Image(
-                            bitmap = it.asImageBitmap(),
+                            bitmap = bgBitmap.asImageBitmap(),
                             contentDescription = null,
                             contentScale = ContentScale.Crop,
                             modifier = Modifier.fillMaxSize()
@@ -93,36 +162,28 @@ fun HomeScreen(
                     }
                 }
             }
-        }
 
-        Spacer(Modifier.weight(1f))
+            Spacer(Modifier.weight(1f))
 
-        Button(
-            onClick = onRequestOverlay,
-            modifier = Modifier.fillMaxWidth().height(IOSDimensions.ButtonHeight),
-            colors = ButtonDefaults.buttonColors(containerColor = IOSColors.AccentSecondary),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Text(
-                "Autoriser l'affichage par-dessus",
-                color = IOSColors.TextPrimary,
-                fontSize = 14.sp
+            // ====================================================
+            // BOUTONS DU BAS
+            // ====================================================
+            GlassButton(
+                text = "Autoriser l'affichage par-dessus",
+                onClick = onRequestOverlay,
+                modifier = Modifier.fillMaxWidth()
             )
-        }
-        Spacer(Modifier.height(12.dp))
 
-        Button(
-            onClick = onTest,
-            modifier = Modifier.fillMaxWidth().height(IOSDimensions.ButtonHeight),
-            colors = ButtonDefaults.buttonColors(containerColor = IOSColors.Accent),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Text(
-                "Tester l'écran de verrouillage",
-                color = IOSColors.TextPrimary,
-                fontSize = IOSTypography.BodySize
+            Spacer(Modifier.height(12.dp))
+
+            GlassButton(
+                text = "Tester l'écran de verrouillage",
+                onClick = onTest,
+                modifier = Modifier.fillMaxWidth(),
+                accent = true
             )
+
+            Spacer(Modifier.height(40.dp))
         }
-        Spacer(Modifier.height(16.dp))
     }
 }
