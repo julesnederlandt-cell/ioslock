@@ -28,10 +28,19 @@ class LockActivity : ComponentActivity() {
             val context = LocalContext.current
             val store = remember { WallpaperStore(context) }
             var wallpaperPath by remember { mutableStateOf<String?>(null) }
+            var subjectPath by remember { mutableStateOf<String?>(null) }
+
             LaunchedEffect(Unit) {
                 store.wallpaperPathFlow.collect { wallpaperPath = it }
             }
-            LockScreen(wallpaperPath = wallpaperPath)
+            LaunchedEffect(Unit) {
+                store.subjectPathFlow.collect { subjectPath = it }
+            }
+
+            LockScreen(
+                wallpaperPath = wallpaperPath,
+                subjectPath = subjectPath
+            )
         }
     }
 
