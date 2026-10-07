@@ -22,6 +22,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import com.example.ioslock.util.ImageUtils
 import kotlinx.coroutines.delay
@@ -35,18 +36,22 @@ fun LockScreen(
     clockColor: String,
     clockScale: Float,
     clock24h: Boolean,
-    clockPositionY: Float
+    clockPositionY: Float,
+    glassIntensity: Float,
+    glassThickness: Float,
+    glassTinted: Boolean,
+    hapticEnabled: Boolean
 ) {
     val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
     var now by remember { mutableStateOf(Date()) }
     val configuration = LocalConfiguration.current
     val density = LocalDensity.current
-    val screenHeightPx = with(density) {
-        configuration.screenHeightDp.dp.toPx()
-    }
+    val screenHeightPx = with(density) { configuration.screenHeightDp.dp.toPx() }
 
     var dragOffset by remember { mutableStateOf(0f) }
     var isDismissing by remember { mutableStateOf(false) }
+    var lastHapticTime by remember { mutableStateOf(0L) }
 
     val animatedOffset by animateFloatAsState(
         targetValue = if (isDismissing) -screenHeightPx else dragOffset,
@@ -64,12 +69,8 @@ fun LockScreen(
         }
     }
 
-    val wallpaperBmp = remember(wallpaperPath) {
-        wallpaperPath?.let { ImageUtils.loadFromPath(it) }
-    }
-    val subjectBmp = remember(subjectPath) {
-        subjectPath?.let { ImageUtils.loadFromPath(it) }
-    }
+    val wallpaperBmp = remember(wallpaperPath) { wallpaperPath?.let { ImageUtils.loadFromPath(it) } }
+    val subjectBmp = remember(subjectPath) { subjectPath?.let { ImageUtils.loadFromPath(it) } }
     val hasDepth = subjectBmp != null
 
     var actualHeightPx by remember { mutableStateOf(0f) }
@@ -84,6 +85,7 @@ fun LockScreen(
                 detectVerticalDragGestures(
                     onDragEnd = {
                         if (dragOffset < -screenHeightPx * 0.25f) {
+                            if (hapticEnabled) triggerHapticToggle(haptic, true)
                             isDismissing = true
                         } else {
                             dragOffset = 0f
@@ -92,31 +94,30 @@ fun LockScreen(
                     onDragCancel = { dragOffset = 0f }
                 ) { _, dragAmount ->
                     if (!isDismissing) {
-                        dragOffset = (dragOffset + dragAmount)
-                            .coerceIn(-screenHeightPx, 0f)
+                        dragOffset = (dragOffset + dragAmount).coerceIn(-screenHeightPx, 0f)
+                        // Haptique toutes les ~80ms pendant le drag
+                        if (hapticEnabled && Math.abs(dragAmount) > 3f) {
+                            val currentTime = System.currentTimeMillis()
+                            if (currentTime - lastHapticTime > 80) {
+                                triggerHapticMove(haptic)
+                                lastHapticTime = currentTime
+                            }
+                        }
                     }
                 }
             }
     ) {
 
-        // ========================================================
         // COUCHE 1 : FOND
-        // ========================================================
         if (wallpaperBmp != null) {
             if (hasDepth && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 Image(
                     bitmap = wallpaperBmp.asImageBitmap(),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .blur(20.dp)
+                    modifier = Modifier.fillMaxSize().blur(20.dp)
                 )
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.25f))
-                )
+                Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.25f)))
             } else {
                 Image(
                     bitmap = wallpaperBmp.asImageBitmap(),
@@ -133,9 +134,7 @@ fun LockScreen(
             )
         }
 
-        // ========================================================
-        // COUCHE 2 : HORLOGE (position personnalisée)
-        // ========================================================
+        // COUCHE 2 : HORLOGE LIQUID GLASS
         val clockY = if (actualHeightPx > 0f) {
             (actualHeightPx * clockPositionY).coerceIn(
                 with(density) { 60.dp.toPx() },
@@ -146,23 +145,23 @@ fun LockScreen(
         }
 
         Box(
-            Modifier
-                .fillMaxWidth()
-                .absoluteOffset(y = with(density) { clockY.toDp() }),
+            Modifier.fillMaxWidth().absoluteOffset(y = with(density) { clockY.toDp() }),
             contentAlignment = Alignment.TopCenter
         ) {
-            ClockText(
+            LiquidClock(
                 date = now,
                 fontKey = clockFont,
                 colorKey = clockColor,
                 scale = clockScale,
-                is24h = clock24h
+                is24h = clock24h,
+                glassIntensity = glassIntensity,
+                glassThickness = glassThickness,
+                hapticEnabled = false, // géré par le parent
+                tinted = glassTinted
             )
         }
 
-        // ========================================================
-        // COUCHE 3 : SUJET DÉCOUPÉ
-        // ========================================================
+        // COUCHE 3 : SUJET
         if (subjectBmp != null) {
             Image(
                 bitmap = subjectBmp.asImageBitmap(),
