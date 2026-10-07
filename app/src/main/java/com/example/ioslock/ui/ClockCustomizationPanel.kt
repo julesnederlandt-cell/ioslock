@@ -17,8 +17,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -34,6 +34,7 @@ fun ClockCustomizationPanel(
     glassThickness: Float,
     glassTinted: Boolean,
     hapticEnabled: Boolean,
+    clockStyle: String,
     onFontChange: (String) -> Unit,
     onColorChange: (String) -> Unit,
     onScaleChange: (Float) -> Unit,
@@ -42,6 +43,7 @@ fun ClockCustomizationPanel(
     onGlassThicknessChange: (Float) -> Unit,
     onGlassTintedChange: (Boolean) -> Unit,
     onHapticEnabledChange: (Boolean) -> Unit,
+    onClockStyleChange: (String) -> Unit,
     onClose: () -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
@@ -93,6 +95,31 @@ fun ClockCustomizationPanel(
                     .padding(horizontal = 12.dp, vertical = 6.dp)
             ) {
                 Text("OK", color = IOSColors.Accent, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            }
+        }
+
+        Spacer(Modifier.height(24.dp))
+
+        // ========================================================
+        // STYLE D'HORLOGE
+        // ========================================================
+        SectionTitle("Style d'horloge")
+        Spacer(Modifier.height(10.dp))
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            StyleChip("Classique", "classic", clockStyle) {
+                if (hapticEnabled) triggerHapticMove(haptic)
+                onClockStyleChange(it)
+            }
+            StyleChip("Capsule", "capsule", clockStyle) {
+                if (hapticEnabled) triggerHapticMove(haptic)
+                onClockStyleChange(it)
+            }
+            StyleChip("Verre", "glass", clockStyle) {
+                if (hapticEnabled) triggerHapticMove(haptic)
+                onClockStyleChange(it)
             }
         }
 
@@ -288,7 +315,7 @@ fun ClockCustomizationPanel(
         Spacer(Modifier.height(16.dp))
 
         // ========================================================
-        // HAPTIQUE (activer/désactiver)
+        // HAPTIQUE
         // ========================================================
         Row(
             Modifier.fillMaxWidth(),
@@ -305,10 +332,7 @@ fun ClockCustomizationPanel(
             }
             Switch(
                 checked = hapticEnabled,
-                onCheckedChange = {
-                    // Ici on ne peut pas s'auto-désactiver avec un haptic, donc pas de trigger
-                    onHapticEnabledChange(it)
-                },
+                onCheckedChange = { onHapticEnabledChange(it) },
                 colors = SwitchDefaults.colors(
                     checkedThumbColor = Color.White,
                     checkedTrackColor = IOSColors.Accent,
@@ -335,6 +359,35 @@ private fun SectionTitle(text: String) {
         fontWeight = FontWeight.Medium,
         letterSpacing = 0.5.sp
     )
+}
+
+@Composable
+private fun StyleChip(
+    label: String,
+    key: String,
+    selectedKey: String,
+    onClick: (String) -> Unit
+) {
+    val selected = key == selectedKey
+    Box(
+        Modifier
+            .clip(RoundedCornerShape(50))
+            .background(if (selected) IOSColors.Accent else Color.White.copy(alpha = 0.1f))
+            .border(
+                0.5.dp,
+                if (selected) Color.Transparent else Color.White.copy(alpha = 0.2f),
+                RoundedCornerShape(50)
+            )
+            .clickableNoRipple { onClick(key) }
+            .padding(horizontal = 18.dp, vertical = 10.dp)
+    ) {
+        Text(
+            label,
+            color = Color.White,
+            fontSize = 14.sp,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
+        )
+    }
 }
 
 @Composable
