@@ -2,7 +2,6 @@ package com.example.ioslock.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -19,6 +18,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -29,12 +30,22 @@ fun ClockCustomizationPanel(
     colorKey: String,
     scale: Float,
     is24h: Boolean,
+    glassIntensity: Float,
+    glassThickness: Float,
+    glassTinted: Boolean,
+    hapticEnabled: Boolean,
     onFontChange: (String) -> Unit,
     onColorChange: (String) -> Unit,
     onScaleChange: (Float) -> Unit,
     on24hChange: (Boolean) -> Unit,
+    onGlassIntensityChange: (Float) -> Unit,
+    onGlassThicknessChange: (Float) -> Unit,
+    onGlassTintedChange: (Boolean) -> Unit,
+    onHapticEnabledChange: (Boolean) -> Unit,
     onClose: () -> Unit
 ) {
+    val haptic = LocalHapticFeedback.current
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -48,7 +59,7 @@ fun ClockCustomizationPanel(
             .verticalScroll(rememberScrollState())
             .padding(20.dp)
     ) {
-        // Poignée visuelle
+        // Poignée
         Box(
             Modifier
                 .align(Alignment.CenterHorizontally)
@@ -75,15 +86,13 @@ fun ClockCustomizationPanel(
                 Modifier
                     .clip(CircleShape)
                     .background(Color.White.copy(alpha = 0.12f))
-                    .clickableNoRipple(onClose)
+                    .clickableNoRipple {
+                        if (hapticEnabled) triggerHapticToggle(haptic, true)
+                        onClose()
+                    }
                     .padding(horizontal = 12.dp, vertical = 6.dp)
             ) {
-                Text(
-                    "OK",
-                    color = IOSColors.Accent,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium
-                )
+                Text("OK", color = IOSColors.Accent, fontSize = 14.sp, fontWeight = FontWeight.Medium)
             }
         }
 
@@ -95,16 +104,29 @@ fun ClockCustomizationPanel(
         SectionTitle("Police")
         Spacer(Modifier.height(10.dp))
         Row(
-            Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            FontChip("Défaut", "default", fontKey, onFontChange)
-            FontChip("Serif", "serif", fontKey, onFontChange)
-            FontChip("Mono", "mono", fontKey, onFontChange)
-            FontChip("Cursive", "cursive", fontKey, onFontChange)
-            FontChip("Light", "light", fontKey, onFontChange)
+            FontChip("Défaut", "default", fontKey) {
+                if (hapticEnabled) triggerHapticMove(haptic)
+                onFontChange(it)
+            }
+            FontChip("Serif", "serif", fontKey) {
+                if (hapticEnabled) triggerHapticMove(haptic)
+                onFontChange(it)
+            }
+            FontChip("Mono", "mono", fontKey) {
+                if (hapticEnabled) triggerHapticMove(haptic)
+                onFontChange(it)
+            }
+            FontChip("Cursive", "cursive", fontKey) {
+                if (hapticEnabled) triggerHapticMove(haptic)
+                onFontChange(it)
+            }
+            FontChip("Light", "light", fontKey) {
+                if (hapticEnabled) triggerHapticMove(haptic)
+                onFontChange(it)
+            }
         }
 
         Spacer(Modifier.height(20.dp))
@@ -115,18 +137,16 @@ fun ClockCustomizationPanel(
         SectionTitle("Couleur")
         Spacer(Modifier.height(10.dp))
         Row(
-            Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            ColorChip("white", colorKey, onColorChange)
-            ColorChip("black", colorKey, onColorChange)
-            ColorChip("blue", colorKey, onColorChange)
-            ColorChip("yellow", colorKey, onColorChange)
-            ColorChip("pink", colorKey, onColorChange)
-            ColorChip("green", colorKey, onColorChange)
-            ColorChip("orange", colorKey, onColorChange)
+            ColorChip("white", colorKey) { if (hapticEnabled) triggerHapticMove(haptic); onColorChange(it) }
+            ColorChip("black", colorKey) { if (hapticEnabled) triggerHapticMove(haptic); onColorChange(it) }
+            ColorChip("blue", colorKey) { if (hapticEnabled) triggerHapticMove(haptic); onColorChange(it) }
+            ColorChip("yellow", colorKey) { if (hapticEnabled) triggerHapticMove(haptic); onColorChange(it) }
+            ColorChip("pink", colorKey) { if (hapticEnabled) triggerHapticMove(haptic); onColorChange(it) }
+            ColorChip("green", colorKey) { if (hapticEnabled) triggerHapticMove(haptic); onColorChange(it) }
+            ColorChip("orange", colorKey) { if (hapticEnabled) triggerHapticMove(haptic); onColorChange(it) }
         }
 
         Spacer(Modifier.height(20.dp))
@@ -140,7 +160,10 @@ fun ClockCustomizationPanel(
             Text("A", color = IOSColors.TextSecondary, fontSize = 14.sp)
             Slider(
                 value = scale,
-                onValueChange = onScaleChange,
+                onValueChange = {
+                    if (hapticEnabled) triggerHapticMove(haptic)
+                    onScaleChange(it)
+                },
                 valueRange = 0.6f..1.5f,
                 modifier = Modifier.weight(1f).padding(horizontal = 12.dp),
                 colors = SliderDefaults.colors(
@@ -152,7 +175,91 @@ fun ClockCustomizationPanel(
             Text("A", color = IOSColors.TextSecondary, fontSize = 24.sp)
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(24.dp))
+
+        // ========================================================
+        // SECTION VERRE (Liquid Glass)
+        // ========================================================
+        SectionTitle("Verre liquide")
+        Spacer(Modifier.height(12.dp))
+
+        // Intensité
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Intensité", color = IOSColors.TextPrimary, fontSize = 14.sp, modifier = Modifier.width(90.dp))
+            Slider(
+                value = glassIntensity,
+                onValueChange = {
+                    if (hapticEnabled) triggerHapticMove(haptic)
+                    onGlassIntensityChange(it)
+                },
+                valueRange = 0f..1f,
+                modifier = Modifier.weight(1f),
+                colors = SliderDefaults.colors(
+                    thumbColor = Color.White,
+                    activeTrackColor = IOSColors.Accent,
+                    inactiveTrackColor = Color.White.copy(alpha = 0.15f)
+                )
+            )
+        }
+        Text(
+            "${(glassIntensity * 100).toInt()}%",
+            color = IOSColors.TextSecondary,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(start = 90.dp)
+        )
+
+        Spacer(Modifier.height(8.dp))
+
+        // Épaisseur
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Épaisseur", color = IOSColors.TextPrimary, fontSize = 14.sp, modifier = Modifier.width(90.dp))
+            Slider(
+                value = glassThickness,
+                onValueChange = {
+                    if (hapticEnabled) triggerHapticMove(haptic)
+                    onGlassThicknessChange(it)
+                },
+                valueRange = 0f..2f,
+                modifier = Modifier.weight(1f),
+                colors = SliderDefaults.colors(
+                    thumbColor = Color.White,
+                    activeTrackColor = IOSColors.Accent,
+                    inactiveTrackColor = Color.White.copy(alpha = 0.15f)
+                )
+            )
+        }
+        Text(
+            String.format("%.1fx", glassThickness),
+            color = IOSColors.TextSecondary,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(start = 90.dp)
+        )
+
+        Spacer(Modifier.height(12.dp))
+
+        // Teinte
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Verre teinté (bleu)", color = IOSColors.TextPrimary, fontSize = 14.sp)
+            Switch(
+                checked = glassTinted,
+                onCheckedChange = {
+                    if (hapticEnabled) triggerHapticToggle(haptic, it)
+                    onGlassTintedChange(it)
+                },
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = Color.White,
+                    checkedTrackColor = IOSColors.Accent,
+                    uncheckedThumbColor = Color.White,
+                    uncheckedTrackColor = Color.White.copy(alpha = 0.15f)
+                )
+            )
+        }
+
+        Spacer(Modifier.height(20.dp))
 
         // ========================================================
         // FORMAT 24H
@@ -162,14 +269,46 @@ fun ClockCustomizationPanel(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                "Format 24 heures",
-                color = IOSColors.TextPrimary,
-                fontSize = 15.sp
-            )
+            Text("Format 24 heures", color = IOSColors.TextPrimary, fontSize = 15.sp)
             Switch(
                 checked = is24h,
-                onCheckedChange = on24hChange,
+                onCheckedChange = {
+                    if (hapticEnabled) triggerHapticToggle(haptic, it)
+                    on24hChange(it)
+                },
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = Color.White,
+                    checkedTrackColor = IOSColors.Accent,
+                    uncheckedThumbColor = Color.White,
+                    uncheckedTrackColor = Color.White.copy(alpha = 0.15f)
+                )
+            )
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        // ========================================================
+        // HAPTIQUE (activer/désactiver)
+        // ========================================================
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text("Retour haptique", color = IOSColors.TextPrimary, fontSize = 15.sp)
+                Text(
+                    "Vibrations subtiles sur les gestes",
+                    color = IOSColors.TextSecondary,
+                    fontSize = 11.sp
+                )
+            }
+            Switch(
+                checked = hapticEnabled,
+                onCheckedChange = {
+                    // Ici on ne peut pas s'auto-désactiver avec un haptic, donc pas de trigger
+                    onHapticEnabledChange(it)
+                },
                 colors = SwitchDefaults.colors(
                     checkedThumbColor = Color.White,
                     checkedTrackColor = IOSColors.Accent,
@@ -209,9 +348,7 @@ private fun FontChip(
     Box(
         Modifier
             .clip(RoundedCornerShape(50))
-            .background(
-                if (selected) IOSColors.Accent else Color.White.copy(alpha = 0.1f)
-            )
+            .background(if (selected) IOSColors.Accent else Color.White.copy(alpha = 0.1f))
             .border(
                 0.5.dp,
                 if (selected) Color.Transparent else Color.White.copy(alpha = 0.2f),
