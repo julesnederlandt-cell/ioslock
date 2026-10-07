@@ -1,5 +1,6 @@
 package com.example.ioslock.ui
 
+import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -37,6 +38,13 @@ object IOSColors {
     val GlassBorder = Color.White.copy(alpha = 0.25f)
     val GlassDark = Color(0x99000000)
     val Overlay = Color(0x66000000)
+
+    // Liquid Glass (iOS 26)
+    val HighlightTop = Color.White.copy(alpha = 0.35f)
+    val HighlightMid = Color.White.copy(alpha = 0.10f)
+    val ShadowBottom = Color.Black.copy(alpha = 0.25f)
+    val EdgeLight = Color.White.copy(alpha = 0.45f)
+    val EdgeShadow = Color.Black.copy(alpha = 0.30f)
 }
 
 // ============================================================
@@ -75,34 +83,75 @@ fun Modifier.clickableNoRipple(onClick: () -> Unit): Modifier = this.then(
 )
 
 // ============================================================
-// COMPOSANTS GLASS
+// LIQUID GLASS — le vrai effet iOS 26
 // ============================================================
+
+/**
+ * Un container Liquid Glass : fond translucide + dégradé diagonal
+ * qui simule un reflet, + bordure lumineuse en haut, + ombre en bas.
+ *
+ * Sur Android 12+, on peut ajouter un vrai flou de ce qui est derrière
+ * via `Modifier.blur()`, mais ce n'est pas possible sans capturer
+ * le fond en temps réel — on simule donc un reflet pour donner
+ * l'illusion de "verre épais".
+ */
 @Composable
-fun GlassCard(
+fun LiquidGlass(
     modifier: Modifier = Modifier,
     cornerRadius: Dp = IOSDimensions.CornerRadiusLarge,
+    tint: Color = Color.Transparent,
     content: @Composable BoxScope.() -> Unit
 ) {
+    val shape = RoundedCornerShape(cornerRadius)
+
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(cornerRadius))
+            .clip(shape)
+            // 1. Couche de base : dégradé translucide
             .background(
                 Brush.verticalGradient(
-                    listOf(
-                        Color.White.copy(alpha = 0.18f),
+                    colors = listOf(
+                        Color.White.copy(alpha = 0.22f),
                         Color.White.copy(alpha = 0.08f)
                     )
                 )
             )
+            // 2. Teinte optionnelle (bleu iOS par exemple)
+            .then(
+                if (tint != Color.Transparent)
+                    Modifier.background(tint.copy(alpha = 0.55f))
+                else Modifier
+            )
+            // 3. Reflet diagonal (highlight)
+            .background(
+                Brush.linearGradient(
+                    colors = listOf(
+                        IOSColors.HighlightTop,
+                        IOSColors.HighlightMid,
+                        Color.Transparent,
+                        IOSColors.ShadowBottom
+                    )
+                )
+            )
+            // 4. Bordure lumineuse (effet verre)
             .border(
-                width = 0.5.dp,
-                color = IOSColors.GlassBorder,
-                shape = RoundedCornerShape(cornerRadius)
+                width = 0.7.dp,
+                brush = Brush.linearGradient(
+                    colors = listOf(
+                        IOSColors.EdgeLight,
+                        Color.White.copy(alpha = 0.10f),
+                        IOSColors.EdgeShadow
+                    )
+                ),
+                shape = shape
             ),
         content = content
     )
 }
 
+/**
+ * Bouton Liquid Glass : capsule arrondie, reflet, bordure.
+ */
 @Composable
 fun GlassButton(
     text: String,
@@ -111,32 +160,41 @@ fun GlassButton(
     accent: Boolean = false,
     enabled: Boolean = true
 ) {
-    val bg = when {
-        !enabled -> Color.White.copy(alpha = 0.05f)
-        accent -> IOSColors.Accent
-        else -> Color.White.copy(alpha = 0.15f)
-    }
-    val borderColor = when {
-        !enabled -> Color.White.copy(alpha = 0.1f)
-        accent -> Color.White.copy(alpha = 0.3f)
-        else -> IOSColors.GlassBorder
-    }
+    val tint = if (accent) IOSColors.Accent else Color.Transparent
     val textColor = if (enabled) Color.White else Color.White.copy(alpha = 0.4f)
 
-    Box(
+    LiquidGlass(
         modifier = modifier
-            .clip(RoundedCornerShape(50))
-            .background(bg)
-            .border(0.5.dp, borderColor, RoundedCornerShape(50))
-            .then(if (enabled) Modifier.clickableNoRipple(onClick) else Modifier)
-            .padding(vertical = 14.dp, horizontal = 24.dp),
-        contentAlignment = Alignment.Center
+            .then(if (enabled) Modifier.clickableNoRipple(onClick) else Modifier),
+        cornerRadius = 50.dp,
+        tint = tint
     ) {
-        Text(
-            text,
-            color = textColor,
-            fontSize = IOSTypography.BodySize,
-            fontWeight = FontWeight.Medium
-        )
+        Box(
+            modifier = Modifier.padding(vertical = 14.dp, horizontal = 24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text,
+                color = textColor,
+                fontSize = IOSTypography.BodySize,
+                fontWeight = FontWeight.Medium
+            )
+        }
     }
+}
+
+/**
+ * Ancienne API conservée pour compatibilité avec le code existant.
+ */
+@Composable
+fun GlassCard(
+    modifier: Modifier = Modifier,
+    cornerRadius: Dp = IOSDimensions.CornerRadiusLarge,
+    content: @Composable BoxScope.() -> Unit
+) {
+    LiquidGlass(
+        modifier = modifier,
+        cornerRadius = cornerRadius,
+        content = content
+    )
 }
