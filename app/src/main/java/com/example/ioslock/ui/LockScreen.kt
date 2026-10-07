@@ -25,8 +25,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import com.example.ioslock.util.ImageUtils
-import io.github.nadeemiqbal.liquidglass.liquidGlassSource
-import io.github.nadeemiqbal.liquidglass.rememberLiquidGlassState
 import kotlinx.coroutines.delay
 import java.util.Date
 import kotlin.math.abs
@@ -41,10 +39,10 @@ fun LockScreen(
     clock24h: Boolean,
     clockPositionY: Float,
     glassIntensity: Float,
-    glassThickness: Float,
     glassTinted: Boolean,
     hapticEnabled: Boolean,
-    clockStyle: String
+    clockStyle: String,
+    clockShape: String
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
@@ -52,8 +50,6 @@ fun LockScreen(
     val configuration = LocalConfiguration.current
     val density = LocalDensity.current
     val screenHeightPx = with(density) { configuration.screenHeightDp.dp.toPx() }
-
-    val glassState = rememberLiquidGlassState()
 
     var dragOffset by remember { mutableStateOf(0f) }
     var isDismissing by remember { mutableStateOf(false) }
@@ -63,16 +59,11 @@ fun LockScreen(
         targetValue = if (isDismissing) -screenHeightPx else dragOffset,
         animationSpec = tween(300),
         label = "offset",
-        finishedListener = {
-            if (isDismissing) (context as? ComponentActivity)?.finish()
-        }
+        finishedListener = { if (isDismissing) (context as? ComponentActivity)?.finish() }
     )
 
     LaunchedEffect(Unit) {
-        while (true) {
-            now = Date()
-            delay(1000)
-        }
+        while (true) { now = Date(); delay(1000) }
     }
 
     val wallpaperBmp = remember(wallpaperPath) { wallpaperPath?.let { ImageUtils.loadFromPath(it) } }
@@ -93,9 +84,7 @@ fun LockScreen(
                         if (dragOffset < -screenHeightPx * 0.25f) {
                             if (hapticEnabled) triggerHapticToggle(haptic, true)
                             isDismissing = true
-                        } else {
-                            dragOffset = 0f
-                        }
+                        } else dragOffset = 0f
                     },
                     onDragCancel = { dragOffset = 0f }
                 ) { _, dragAmount ->
@@ -112,18 +101,13 @@ fun LockScreen(
                 }
             }
     ) {
-
-        // FOND — liquidGlassSource
         if (wallpaperBmp != null) {
             if (hasDepth && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 Image(
                     bitmap = wallpaperBmp.asImageBitmap(),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .blur(20.dp)
-                        .liquidGlassSource(glassState)
+                    modifier = Modifier.fillMaxSize().blur(20.dp)
                 )
                 Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.25f)))
             } else {
@@ -131,31 +115,21 @@ fun LockScreen(
                     bitmap = wallpaperBmp.asImageBitmap(),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .liquidGlassSource(glassState)
+                    modifier = Modifier.fillMaxSize()
                 )
             }
         } else {
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(listOf(Color(0xFF1C1C2E), Color.Black))
-                    )
-                    .liquidGlassSource(glassState)
-            )
+            Box(Modifier.fillMaxSize().background(
+                Brush.verticalGradient(listOf(Color(0xFF1C1C2E), Color.Black))
+            ))
         }
 
-        // HORLOGE
         val clockY = if (actualHeightPx > 0f) {
             (actualHeightPx * clockPositionY).coerceIn(
                 with(density) { 60.dp.toPx() },
                 actualHeightPx - with(density) { 350.dp.toPx() }
             )
-        } else {
-            with(density) { 80.dp.toPx() }
-        }
+        } else with(density) { 80.dp.toPx() }
 
         Box(
             Modifier.fillMaxWidth().absoluteOffset(y = with(density) { clockY.toDp() }),
@@ -167,15 +141,14 @@ fun LockScreen(
                 colorKey = clockColor,
                 scale = clockScale,
                 is24h = clock24h,
-                glassState = glassState,
                 style = clockStyle,
+                shape = clockShape,
                 glassIntensity = glassIntensity,
                 hapticEnabled = false,
                 tinted = glassTinted
             )
         }
 
-        // SUJET
         if (subjectBmp != null) {
             Image(
                 bitmap = subjectBmp.asImageBitmap(),
