@@ -15,8 +15,6 @@ import androidx.compose.ui.platform.LocalContext
 import com.example.ioslock.data.WallpaperStore
 import com.example.ioslock.ui.EditScreen
 import com.example.ioslock.ui.HomeScreen
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
