@@ -35,28 +35,22 @@ class LockActivity : ComponentActivity() {
             var clockScale by remember { mutableStateOf(WallpaperStore.DEFAULT_SCALE) }
             var clock24h by remember { mutableStateOf(WallpaperStore.DEFAULT_24H == 1) }
             var clockPosY by remember { mutableStateOf(WallpaperStore.DEFAULT_POSITION_Y) }
+            var glassIntensity by remember { mutableStateOf(WallpaperStore.DEFAULT_GLASS_INTENSITY) }
+            var glassThickness by remember { mutableStateOf(WallpaperStore.DEFAULT_GLASS_THICKNESS) }
+            var glassTinted by remember { mutableStateOf(WallpaperStore.DEFAULT_GLASS_TINTED == 1) }
+            var hapticEnabled by remember { mutableStateOf(WallpaperStore.DEFAULT_HAPTIC_ENABLED == 1) }
 
-            LaunchedEffect(Unit) {
-                store.wallpaperPathFlow.collect { wallpaperPath = it }
-            }
-            LaunchedEffect(Unit) {
-                store.subjectPathFlow.collect { subjectPath = it }
-            }
-            LaunchedEffect(Unit) {
-                store.clockFontFlow.collect { clockFont = it }
-            }
-            LaunchedEffect(Unit) {
-                store.clockColorFlow.collect { clockColor = it }
-            }
-            LaunchedEffect(Unit) {
-                store.clockScaleFlow.collect { clockScale = it }
-            }
-            LaunchedEffect(Unit) {
-                store.clock24hFlow.collect { clock24h = it }
-            }
-            LaunchedEffect(Unit) {
-                store.clockPositionYFlow.collect { clockPosY = it }
-            }
+            LaunchedEffect(Unit) { store.wallpaperPathFlow.collect { wallpaperPath = it } }
+            LaunchedEffect(Unit) { store.subjectPathFlow.collect { subjectPath = it } }
+            LaunchedEffect(Unit) { store.clockFontFlow.collect { clockFont = it } }
+            LaunchedEffect(Unit) { store.clockColorFlow.collect { clockColor = it } }
+            LaunchedEffect(Unit) { store.clockScaleFlow.collect { clockScale = it } }
+            LaunchedEffect(Unit) { store.clock24hFlow.collect { clock24h = it } }
+            LaunchedEffect(Unit) { store.clockPositionYFlow.collect { clockPosY = it } }
+            LaunchedEffect(Unit) { store.glassIntensityFlow.collect { glassIntensity = it } }
+            LaunchedEffect(Unit) { store.glassThicknessFlow.collect { glassThickness = it } }
+            LaunchedEffect(Unit) { store.glassTintedFlow.collect { glassTinted = it } }
+            LaunchedEffect(Unit) { store.hapticEnabledFlow.collect { hapticEnabled = it } }
 
             LockScreen(
                 wallpaperPath = wallpaperPath,
@@ -65,7 +59,11 @@ class LockActivity : ComponentActivity() {
                 clockColor = clockColor,
                 clockScale = clockScale,
                 clock24h = clock24h,
-                clockPositionY = clockPosY
+                clockPositionY = clockPosY,
+                glassIntensity = glassIntensity,
+                glassThickness = glassThickness,
+                glassTinted = glassTinted,
+                hapticEnabled = hapticEnabled
             )
         }
     }
