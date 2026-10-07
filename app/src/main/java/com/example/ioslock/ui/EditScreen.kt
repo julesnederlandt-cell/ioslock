@@ -9,6 +9,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
@@ -31,8 +32,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ioslock.util.DepthEffect
 import com.example.ioslock.util.ImageUtils
-import io.github.nadeemiqbal.liquidglass.liquidGlassSource
-import io.github.nadeemiqbal.liquidglass.rememberLiquidGlassState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.Date
@@ -50,19 +49,16 @@ fun EditScreen(
         is24h: Boolean,
         posY: Float,
         glassIntensity: Float,
-        glassThickness: Float,
         glassTinted: Boolean,
         hapticEnabled: Boolean,
-        clockStyle: String
+        clockStyle: String,
+        clockShape: String
     ) -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
     val haptic = LocalHapticFeedback.current
-
-    // State partagé pour Liquid Glass
-    val glassState = rememberLiquidGlassState()
 
     var photoUri by remember { mutableStateOf<Uri?>(null) }
     var now by remember { mutableStateOf(Date()) }
@@ -75,9 +71,9 @@ fun EditScreen(
     var clockPosY by remember { mutableStateOf(0.15f) }
     var showClockPanel by remember { mutableStateOf(false) }
     var clockStyle by remember { mutableStateOf("capsule") }
+    var clockShape by remember { mutableStateOf(ClockShapes.ROUNDED) }
 
     var glassIntensity by remember { mutableStateOf(0.6f) }
-    var glassThickness by remember { mutableStateOf(1.0f) }
     var glassTinted by remember { mutableStateOf(false) }
     var hapticEnabled by remember { mutableStateOf(true) }
 
@@ -85,10 +81,7 @@ fun EditScreen(
     var screenHeightPx by remember { mutableStateOf(0f) }
 
     LaunchedEffect(Unit) {
-        while (true) {
-            now = Date()
-            delay(1000)
-        }
+        while (true) { now = Date(); delay(1000) }
     }
 
     val pickImage = rememberLauncherForActivityResult(
@@ -102,9 +95,7 @@ fun EditScreen(
             .onSizeChanged { screenHeightPx = it.height.toFloat() }
     ) {
 
-        // ====================================================
-        // PHOTO DE FOND — liquidGlassSource pour que le verre la capte
-        // ====================================================
+        // PHOTO
         val uri = photoUri
         if (uri != null) {
             val bmp = remember(uri) { ImageUtils.loadFromUri(context, uri) }
@@ -113,22 +104,15 @@ fun EditScreen(
                     bitmap = it.asImageBitmap(),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .liquidGlassSource(glassState)
+                    modifier = Modifier.fillMaxSize()
                 )
             }
         } else {
             Box(
                 Modifier
                     .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(Color(0xFF2C2C3E), Color(0xFF0A0A15))
-                        )
-                    )
-                    .clickable { pickImage.launch("image/*") }
-                    .liquidGlassSource(glassState),
+                    .background(Brush.verticalGradient(listOf(Color(0xFF2C2C3E), Color(0xFF0A0A15))))
+                    .clickable { pickImage.launch("image/*") },
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -138,22 +122,16 @@ fun EditScreen(
             }
         }
 
-        // ====================================================
-        // HORLOGE AVEC GLASSCARD
-        // ====================================================
+        // HORLOGE
         val clockY = if (screenHeightPx > 0f) {
             (screenHeightPx * clockPosY).coerceIn(
                 with(density) { 60.dp.toPx() },
                 screenHeightPx - with(density) { 350.dp.toPx() }
             )
-        } else {
-            with(density) { 80.dp.toPx() }
-        }
+        } else with(density) { 80.dp.toPx() }
 
         Box(
-            Modifier
-                .fillMaxWidth()
-                .absoluteOffset(y = with(density) { clockY.toDp() }),
+            Modifier.fillMaxWidth().absoluteOffset(y = with(density) { clockY.toDp() }),
             contentAlignment = Alignment.TopCenter
         ) {
             Box(
@@ -165,11 +143,10 @@ fun EditScreen(
                         ) { change, dragAmount ->
                             change.consume()
                             if (screenHeightPx > 0f && !isResizing) {
-                                val newY = (clockY + dragAmount.y)
-                                    .coerceIn(
-                                        with(density) { 60.dp.toPx() },
-                                        screenHeightPx - with(density) { 350.dp.toPx() }
-                                    )
+                                val newY = (clockY + dragAmount.y).coerceIn(
+                                    with(density) { 60.dp.toPx() },
+                                    screenHeightPx - with(density) { 350.dp.toPx() }
+                                )
                                 clockPosY = newY / screenHeightPx
                                 if (hapticEnabled && abs(dragAmount.y) > 4f) triggerHapticMove(haptic)
                             }
@@ -191,20 +168,20 @@ fun EditScreen(
                         colorKey = clockColor,
                         scale = clockScale,
                         is24h = clock24h,
-                        glassState = glassState,
                         style = clockStyle,
+                        shape = clockShape,
                         glassIntensity = glassIntensity,
                         hapticEnabled = false,
                         tinted = glassTinted
                     )
 
-                    // Resize handle (bas centre)
+                    // HANDLE EN BAS CENTRE
                     Box(
                         Modifier
                             .align(Alignment.BottomCenter)
-                            .offset(y = 14.dp)
-                            .size(24.dp)
-                            .clip(androidx.compose.foundation.shape.CircleShape)
+                            .offset(y = 16.dp)
+                            .size(26.dp)
+                            .clip(CircleShape)
                             .background(if (isResizing) Color.White else Color.White.copy(alpha = 0.85f))
                             .pointerInput(Unit) {
                                 detectDragGestures(
@@ -216,7 +193,8 @@ fun EditScreen(
                                     onDragCancel = { isResizing = false }
                                 ) { change, dragAmount ->
                                     change.consume()
-                                    val delta = (dragAmount.x + dragAmount.y) / 350f
+                                    // Drag vers le BAS = agrandir
+                                    val delta = -dragAmount.y / 400f
                                     val newScale = (clockScale + delta).coerceIn(0.6f, 1.5f)
                                     if (newScale != clockScale) {
                                         clockScale = newScale
@@ -226,20 +204,13 @@ fun EditScreen(
                             },
                         contentAlignment = Alignment.Center
                     ) {
-                        Box(
-                            Modifier
-                                .size(6.dp)
-                                .clip(androidx.compose.foundation.shape.CircleShape)
-                                .background(Color.Black.copy(alpha = 0.5f))
-                        )
+                        Box(Modifier.size(6.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.5f)))
                     }
                 }
             }
         }
 
-        // ====================================================
         // BARRE DU BAS
-        // ====================================================
         Row(
             Modifier
                 .align(Alignment.BottomCenter)
@@ -265,14 +236,14 @@ fun EditScreen(
                         if (u != null && !isProcessing) {
                             isProcessing = true
                             scope.launch {
-                                val wallpaperPath = ImageUtils.saveWallpaperLocally(context, u)
+                                val wp = ImageUtils.saveWallpaperLocally(context, u)
                                 DepthEffect.clearCache(context)
-                                val subjectPath = DepthEffect.extractSubject(context, u)
-                                if (wallpaperPath != null) {
+                                val sp = DepthEffect.extractSubject(context, u)
+                                if (wp != null) {
                                     onSave(
-                                        wallpaperPath, subjectPath, clockFont, clockColor,
-                                        clockScale, clock24h, clockPosY, glassIntensity,
-                                        glassThickness, glassTinted, hapticEnabled, clockStyle
+                                        wp, sp, clockFont, clockColor, clockScale, clock24h,
+                                        clockPosY, glassIntensity, glassTinted, hapticEnabled,
+                                        clockStyle, clockShape
                                     )
                                 }
                                 isProcessing = false
@@ -297,9 +268,7 @@ fun EditScreen(
                     }
             ) {
                 Box(
-                    Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
+                    Modifier.align(Alignment.BottomCenter).fillMaxWidth()
                         .clickable(enabled = false) { }
                 ) {
                     ClockCustomizationPanel(
@@ -308,19 +277,19 @@ fun EditScreen(
                         scale = clockScale,
                         is24h = clock24h,
                         glassIntensity = glassIntensity,
-                        glassThickness = glassThickness,
                         glassTinted = glassTinted,
                         hapticEnabled = hapticEnabled,
                         clockStyle = clockStyle,
+                        clockShape = clockShape,
                         onFontChange = { clockFont = it },
                         onColorChange = { clockColor = it },
                         onScaleChange = { clockScale = it },
                         on24hChange = { clock24h = it },
                         onGlassIntensityChange = { glassIntensity = it },
-                        onGlassThicknessChange = { glassThickness = it },
                         onGlassTintedChange = { glassTinted = it },
                         onHapticEnabledChange = { hapticEnabled = it },
                         onClockStyleChange = { clockStyle = it },
+                        onClockShapeChange = { clockShape = it },
                         onClose = { showClockPanel = false }
                     )
                 }
@@ -329,16 +298,11 @@ fun EditScreen(
 
         // SPINNER
         if (isProcessing) {
-            Box(
-                Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.7f)),
-                contentAlignment = Alignment.Center
-            ) {
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.7f)), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     CircularProgressIndicator(color = IOSColors.Accent)
                     Spacer(Modifier.height(16.dp))
                     Text("Analyse de l'image...", color = IOSColors.TextPrimary, fontSize = 15.sp)
-                    Spacer(Modifier.height(8.dp))
-                    Text("Détection du sujet en cours", color = IOSColors.TextSecondary, fontSize = 12.sp)
                 }
             }
         }
