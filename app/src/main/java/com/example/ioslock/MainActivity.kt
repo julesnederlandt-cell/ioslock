@@ -69,7 +69,7 @@ fun EditorApp() {
         )
         "edit" -> EditScreen(
             onCancel = { currentScreen = "home" },
-            onSave = { wp, sp, font, color, scale, is24h, posY, gi, gt, gTint, hap ->
+            onSave = { wp, sp, font, color, scale, is24h, posY, gi, gt, gTint, hap, style ->
                 scope.launch {
                     store.setWallpaperPath(wp)
                     store.setSubjectPath(sp)
@@ -82,6 +82,7 @@ fun EditorApp() {
                     store.setGlassThickness(gt)
                     store.setGlassTinted(gTint)
                     store.setHapticEnabled(hap)
+                    store.setClockStyle(style)
                 }
                 currentScreen = "home"
             }
