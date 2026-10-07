@@ -7,6 +7,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
@@ -22,9 +23,9 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -44,25 +45,35 @@ fun EditScreen(
         color: String,
         scale: Float,
         is24h: Boolean,
-        posY: Float
+        posY: Float,
+        glassIntensity: Float,
+        glassThickness: Float,
+        glassTinted: Boolean,
+        hapticEnabled: Boolean
     ) -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val configuration = LocalConfiguration.current
     val density = LocalDensity.current
+    val haptic = LocalHapticFeedback.current
 
     var photoUri by remember { mutableStateOf<Uri?>(null) }
     var now by remember { mutableStateOf(Date()) }
     var isProcessing by remember { mutableStateOf(false) }
 
-    // État de personnalisation de l'horloge
+    // Horloge
     var clockFont by remember { mutableStateOf("default") }
     var clockColor by remember { mutableStateOf("white") }
     var clockScale by remember { mutableStateOf(1.0f) }
     var clock24h by remember { mutableStateOf(true) }
     var clockPosY by remember { mutableStateOf(0.15f) }
     var showClockPanel by remember { mutableStateOf(false) }
+
+    // Liquid Glass
+    var glassIntensity by remember { mutableStateOf(0.6f) }
+    var glassThickness by remember { mutableStateOf(1.0f) }
+    var glassTinted by remember { mutableStateOf(false) }
+    var hapticEnabled by remember { mutableStateOf(true) }
 
     var screenHeightPx by remember { mutableStateOf(0f) }
 
@@ -81,9 +92,7 @@ fun EditScreen(
         Modifier
             .fillMaxSize()
             .background(Color.Black)
-            .onSizeChanged { size ->
-                screenHeightPx = size.height.toFloat()
-            }
+            .onSizeChanged { screenHeightPx = it.height.toFloat() }
     ) {
 
         // ========================================================
@@ -114,17 +123,13 @@ fun EditScreen(
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("+", color = IOSColors.TextTertiary, fontSize = 60.sp)
-                    Text(
-                        "Choisir une photo",
-                        color = IOSColors.TextTertiary,
-                        fontSize = 16.sp
-                    )
+                    Text("Choisir une photo", color = IOSColors.TextTertiary, fontSize = 16.sp)
                 }
             }
         }
 
         // ========================================================
-        // HORLOGE DRAGGABLE
+        // HORLOGE LIQUID GLASS DRAGGABLE
         // ========================================================
         val clockY = if (screenHeightPx > 0f) {
             (screenHeightPx * clockPosY).coerceIn(
@@ -140,7 +145,11 @@ fun EditScreen(
                 .fillMaxWidth()
                 .absoluteOffset(y = with(density) { clockY.toDp() })
                 .pointerInput(screenHeightPx) {
-                    detectDragGestures { change, dragAmount ->
+                    detectDragGestures(
+                        onDragStart = {
+                            if (hapticEnabled) triggerHapticLongPress(haptic)
+                        }
+                    ) { change, dragAmount ->
                         change.consume()
                         if (screenHeightPx > 0f) {
                             val newY = (clockY + dragAmount.y)
@@ -149,25 +158,33 @@ fun EditScreen(
                                     screenHeightPx - with(density) { 350.dp.toPx() }
                                 )
                             clockPosY = newY / screenHeightPx
+                            if (hapticEnabled && kotlin.math.abs(dragAmount.y) > 4f) {
+                                triggerHapticMove(haptic)
+                            }
                         }
                     }
+                }
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onTap = {
+                            if (hapticEnabled) triggerHapticLongPress(haptic)
+                            showClockPanel = true
+                        }
+                    )
                 },
             contentAlignment = Alignment.TopCenter
         ) {
-            Box(
-                Modifier
-                    .clip(RoundedCornerShape(20.dp))
-                    .clickable { showClockPanel = true }
-                    .padding(16.dp)
-            ) {
-                ClockText(
-                    date = now,
-                    fontKey = clockFont,
-                    colorKey = clockColor,
-                    scale = clockScale,
-                    is24h = clock24h
-                )
-            }
+            LiquidClock(
+                date = now,
+                fontKey = clockFont,
+                colorKey = clockColor,
+                scale = clockScale,
+                is24h = clock24h,
+                glassIntensity = glassIntensity,
+                glassThickness = glassThickness,
+                hapticEnabled = false, // le parent gère l'haptique
+                tinted = glassTinted
+            )
         }
 
         // ========================================================
@@ -215,7 +232,11 @@ fun EditScreen(
                                         clockColor,
                                         clockScale,
                                         clock24h,
-                                        clockPosY
+                                        clockPosY,
+                                        glassIntensity,
+                                        glassThickness,
+                                        glassTinted,
+                                        hapticEnabled
                                     )
                                 }
                                 isProcessing = false
@@ -224,24 +245,22 @@ fun EditScreen(
                     }
                     .padding(vertical = 12.dp, horizontal = 24.dp)
             ) {
-                Text(
-                    "Ajouter",
-                    color = IOSColors.TextPrimary,
-                    fontSize = IOSTypography.BodySize,
-                    fontWeight = FontWeight.Medium
-                )
+                Text("Ajouter", color = IOSColors.TextPrimary, fontSize = IOSTypography.BodySize, fontWeight = FontWeight.Medium)
             }
         }
 
         // ========================================================
-        // PANNEAU DE PERSONNALISATION DE L'HORLOGE
+        // PANNEAU DE PERSONNALISATION
         // ========================================================
         if (showClockPanel) {
             Box(
                 Modifier
                     .fillMaxSize()
                     .background(Color.Black.copy(alpha = 0.4f))
-                    .clickable { showClockPanel = false }
+                    .clickable {
+                        if (hapticEnabled) triggerHapticToggle(haptic, false)
+                        showClockPanel = false
+                    }
             ) {
                 Box(
                     Modifier
@@ -254,10 +273,18 @@ fun EditScreen(
                         colorKey = clockColor,
                         scale = clockScale,
                         is24h = clock24h,
+                        glassIntensity = glassIntensity,
+                        glassThickness = glassThickness,
+                        glassTinted = glassTinted,
+                        hapticEnabled = hapticEnabled,
                         onFontChange = { clockFont = it },
                         onColorChange = { clockColor = it },
                         onScaleChange = { clockScale = it },
                         on24hChange = { clock24h = it },
+                        onGlassIntensityChange = { glassIntensity = it },
+                        onGlassThicknessChange = { glassThickness = it },
+                        onGlassTintedChange = { glassTinted = it },
+                        onHapticEnabledChange = { hapticEnabled = it },
                         onClose = { showClockPanel = false }
                     )
                 }
@@ -265,29 +292,19 @@ fun EditScreen(
         }
 
         // ========================================================
-        // SPINNER DE TRAITEMENT
+        // SPINNER
         // ========================================================
         if (isProcessing) {
             Box(
-                Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.7f)),
+                Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.7f)),
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     CircularProgressIndicator(color = IOSColors.Accent)
                     Spacer(Modifier.height(16.dp))
-                    Text(
-                        "Analyse de l'image...",
-                        color = IOSColors.TextPrimary,
-                        fontSize = 15.sp
-                    )
+                    Text("Analyse de l'image...", color = IOSColors.TextPrimary, fontSize = 15.sp)
                     Spacer(Modifier.height(8.dp))
-                    Text(
-                        "Détection du sujet en cours",
-                        color = IOSColors.TextSecondary,
-                        fontSize = 12.sp
-                    )
+                    Text("Détection du sujet en cours", color = IOSColors.TextSecondary, fontSize = 12.sp)
                 }
             }
         }
