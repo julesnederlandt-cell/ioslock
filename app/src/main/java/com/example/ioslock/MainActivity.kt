@@ -33,7 +33,6 @@ fun EditorApp() {
     var currentScreen by remember { mutableStateOf("home") }
     var wallpaperPath by remember { mutableStateOf<String?>(null) }
 
-    // Charge le wallpaper depuis DataStore
     LaunchedEffect(Unit) {
         store.wallpaperPathFlow.collect { path ->
             wallpaperPath = path
@@ -72,10 +71,15 @@ fun EditorApp() {
         )
         "edit" -> EditScreen(
             onCancel = { currentScreen = "home" },
-            onSave = { wallpaperPath, subjectPath ->
+            onSave = { wallpaperPath, subjectPath, font, color, scale, is24h, posY ->
                 scope.launch {
                     store.setWallpaperPath(wallpaperPath)
                     store.setSubjectPath(subjectPath)
+                    store.setClockFont(font)
+                    store.setClockColor(color)
+                    store.setClockScale(scale)
+                    store.setClock24h(is24h)
+                    store.setClockPositionY(posY)
                 }
                 currentScreen = "home"
             }
