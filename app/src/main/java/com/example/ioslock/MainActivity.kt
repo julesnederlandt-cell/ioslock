@@ -56,9 +56,7 @@ fun EditorApp() {
         "home" -> HomeScreen(
             wallpaperPath = wallpaperPath,
             onAddNew = { currentScreen = "edit" },
-            onTest = {
-                context.startActivity(Intent(context, LockActivity::class.java))
-            },
+            onTest = { context.startActivity(Intent(context, LockActivity::class.java)) },
             onRequestOverlay = {
                 val intent = Intent(
                     Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
@@ -69,7 +67,7 @@ fun EditorApp() {
         )
         "edit" -> EditScreen(
             onCancel = { currentScreen = "home" },
-            onSave = { wp, sp, font, color, scale, is24h, posY, gi, gt, gTint, hap, style ->
+            onSave = { wp, sp, font, color, scale, is24h, posY, gi, gTint, hap, style, shape ->
                 scope.launch {
                     store.setWallpaperPath(wp)
                     store.setSubjectPath(sp)
@@ -79,7 +77,6 @@ fun EditorApp() {
                     store.setClock24h(is24h)
                     store.setClockPositionY(posY)
                     store.setGlassIntensity(gi)
-                    store.setGlassThickness(gt)
                     store.setGlassTinted(gTint)
                     store.setHapticEnabled(hap)
                     store.setClockStyle(style)
