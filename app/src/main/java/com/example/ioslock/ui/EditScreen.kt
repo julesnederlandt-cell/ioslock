@@ -8,8 +8,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
@@ -23,17 +22,25 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.ioslock.util.DepthEffect
 import com.example.ioslock.util.ImageUtils
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 @Composable
-fun EditScreen(onCancel: () -> Unit, onSave: (String) -> Unit) {
+fun EditScreen(
+    onCancel: () -> Unit,
+    onSave: (wallpaperPath: String, subjectPath: String?) -> Unit
+) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
     var photoUri by remember { mutableStateOf<Uri?>(null) }
     var now by remember { mutableStateOf(Date()) }
+    var isProcessing by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         while (true) {
@@ -47,6 +54,10 @@ fun EditScreen(onCancel: () -> Unit, onSave: (String) -> Unit) {
     ) { uri -> uri?.let { photoUri = it } }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
+
+        // ========================================================
+        // APERÇU PHOTO
+        // ========================================================
         val uri = photoUri
         if (uri != null) {
             val bmp = remember(uri) { ImageUtils.loadFromUri(context, uri) }
@@ -81,6 +92,9 @@ fun EditScreen(onCancel: () -> Unit, onSave: (String) -> Unit) {
             }
         }
 
+        // ========================================================
+        // HORLOGE
+        // ========================================================
         Column(
             Modifier.fillMaxWidth().padding(top = 80.dp),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -101,6 +115,9 @@ fun EditScreen(onCancel: () -> Unit, onSave: (String) -> Unit) {
             )
         }
 
+        // ========================================================
+        // BARRE DU BAS
+        // ========================================================
         Row(
             Modifier
                 .align(Alignment.BottomCenter)
@@ -111,28 +128,78 @@ fun EditScreen(onCancel: () -> Unit, onSave: (String) -> Unit) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            TextButton(onClick = onCancel) {
+            TextButton(onClick = onCancel, enabled = !isProcessing) {
                 Text("Annuler", color = IOSColors.TextPrimary, fontSize = IOSTypography.BodySize)
             }
-            TextButton(onClick = { pickImage.launch("image/*") }) {
+
+            TextButton(onClick = { pickImage.launch("image/*") }, enabled = !isProcessing) {
                 Text("Photo", color = IOSColors.Accent, fontSize = IOSTypography.BodySize)
             }
-            Button(
-                onClick = {
-                    val u = photoUri
-                    if (u != null) {
-                        val path = ImageUtils.saveWallpaperLocally(context, u)
-                        if (path != null) onSave(path)
+
+            // Bouton "Ajouter" — déclenche segmentation + sauvegarde
+            Box(
+                Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(
+                        if (photoUri != null && !isProcessing) IOSColors.Accent
+                        else IOSColors.AccentSecondary
+                    )
+                    .clickableNoRipple {
+                        val u = photoUri
+                        if (u != null && !isProcessing) {
+                            isProcessing = true
+                            scope.launch {
+                                // 1. Sauvegarde la photo
+                                val wallpaperPath = ImageUtils.saveWallpaperLocally(context, u)
+
+                                // 2. Analyse ML Kit
+                                DepthEffect.clearCache(context)
+                                val subjectPath = DepthEffect.extractSubject(context, u)
+
+                                // 3. Callback
+                                if (wallpaperPath != null) {
+                                    onSave(wallpaperPath, subjectPath)
+                                }
+                                isProcessing = false
+                            }
+                        }
                     }
-                },
-                enabled = photoUri != null,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = IOSColors.Accent,
-                    disabledContainerColor = IOSColors.AccentSecondary
-                ),
-                shape = RoundedCornerShape(12.dp)
+                    .padding(vertical = 12.dp, horizontal = 24.dp)
             ) {
-                Text("Ajouter", color = IOSColors.TextPrimary, fontSize = IOSTypography.BodySize)
+                Text(
+                    "Ajouter",
+                    color = IOSColors.TextPrimary,
+                    fontSize = IOSTypography.BodySize,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
+
+        // ========================================================
+        // SPINNER DE TRAITEMENT
+        // ========================================================
+        if (isProcessing) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.7f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator(color = IOSColors.Accent)
+                    Spacer(Modifier.height(16.dp))
+                    Text(
+                        "Analyse de l'image...",
+                        color = IOSColors.TextPrimary,
+                        fontSize = 15.sp
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Détection du sujet en cours",
+                        color = IOSColors.TextSecondary,
+                        fontSize = 12.sp
+                    )
+                }
             }
         }
     }
