@@ -2,6 +2,8 @@ package com.example.ioslock.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.padding
@@ -14,6 +16,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -30,11 +33,10 @@ object IOSColors {
     val TextTertiary = Color.White.copy(alpha = 0.5f)
     val Error = Color(0xFFFF453A)
 
-    // Glass
     val GlassLight = Color.White.copy(alpha = 0.15f)
     val GlassBorder = Color.White.copy(alpha = 0.25f)
     val GlassDark = Color(0x99000000)
-    val Overlay = Color(0x66000000) // assombrit la photo de fond
+    val Overlay = Color(0x66000000)
 }
 
 // ============================================================
@@ -62,16 +64,23 @@ object IOSDimensions {
 }
 
 // ============================================================
-// COMPOSANTS RÉUTILISABLES : GLASS
+// MODIFIER HELPERS
 // ============================================================
+fun Modifier.clickableNoRipple(onClick: () -> Unit): Modifier = this.then(
+    Modifier.clickable(
+        interactionSource = MutableInteractionSource(),
+        indication = null,
+        onClick = onClick
+    )
+)
 
-/**
- * Carte avec effet "verre" iOS : fond translucide + bordure subtile + coins arrondis.
- */
+// ============================================================
+// COMPOSANTS GLASS
+// ============================================================
 @Composable
 fun GlassCard(
     modifier: Modifier = Modifier,
-    cornerRadius: androidx.compose.ui.unit.Dp = IOSDimensions.CornerRadiusLarge,
+    cornerRadius: Dp = IOSDimensions.CornerRadiusLarge,
     content: @Composable BoxScope.() -> Unit
 ) {
     Box(
@@ -94,9 +103,6 @@ fun GlassCard(
     )
 }
 
-/**
- * Bouton "glass" style iOS 26 : capsule translucide, texte centré.
- */
 @Composable
 fun GlassButton(
     text: String,
@@ -122,9 +128,7 @@ fun GlassButton(
             .clip(RoundedCornerShape(50))
             .background(bg)
             .border(0.5.dp, borderColor, RoundedCornerShape(50))
-            .then(
-                if (enabled) Modifier.clickableNoRipple(onClick) else Modifier
-            )
+            .then(if (enabled) Modifier.clickableNoRipple(onClick) else Modifier)
             .padding(vertical = 14.dp, horizontal = 24.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -135,22 +139,4 @@ fun GlassButton(
             fontWeight = FontWeight.Medium
         )
     }
-}
-
-/**
- * Modifier clickable sans ripple (style iOS : pas d'ondulation Android).
- */
-fun Modifier.clickableNoRipple(onClick: () -> Unit): Modifier =
-    this.then(
-        Modifier.clickableWithNoIndication(onClick)
-    )
-
-private fun Modifier.clickableWithNoIndication(onClick: () -> Unit): Modifier {
-    return this.then(
-        androidx.compose.foundation.clickable(
-            interactionSource = androidx.compose.foundation.interaction.MutableInteractionSource(),
-            indication = null,
-            onClick = onClick
-        )
-    )
 }
