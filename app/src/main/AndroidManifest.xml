@@ -1,21 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Permissions de base -->
     <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
     <uses-permission android:name="android.permission.DISABLE_KEYGUARD"/>
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+
+    <!-- Lecture des photos -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32"/>
 
+    <!-- Retour haptique (Liquid Glass) -->
+    <uses-permission android:name="android.permission.VIBRATE"/>
+
     <application
         android:theme="@style/Theme.IOSLock"
         android:label="iOS Lock">
 
+        <!-- Activité principale : éditeur -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -26,6 +33,7 @@
             </intent-filter>
         </activity>
 
+        <!-- Écran de verrouillage custom -->
         <activity
             android:name=".LockActivity"
             android:exported="false"
@@ -35,6 +43,7 @@
             android:excludeFromRecents="true"
             android:theme="@style/Theme.IOSLock.Fullscreen" />
 
+        <!-- Receiver : détecte l'allumage de l'écran -->
         <receiver
             android:name=".ScreenReceiver"
             android:exported="true">
@@ -44,6 +53,7 @@
             </intent-filter>
         </receiver>
 
+        <!-- Meta-data ML Kit (Depth Effect) -->
         <meta-data
             android:name="com.google.mlkit.vision.DEPENDENCIES"
             android:value="subject_segment" />
