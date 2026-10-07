@@ -5,12 +5,10 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
@@ -33,6 +31,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ioslock.util.DepthEffect
 import com.example.ioslock.util.ImageUtils
+import io.github.nadeemiqbal.liquidglass.liquidGlassSource
+import io.github.nadeemiqbal.liquidglass.rememberLiquidGlassState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.Date
@@ -60,6 +60,9 @@ fun EditScreen(
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
     val haptic = LocalHapticFeedback.current
+
+    // State partagé pour Liquid Glass
+    val glassState = rememberLiquidGlassState()
 
     var photoUri by remember { mutableStateOf<Uri?>(null) }
     var now by remember { mutableStateOf(Date()) }
@@ -99,7 +102,9 @@ fun EditScreen(
             .onSizeChanged { screenHeightPx = it.height.toFloat() }
     ) {
 
-        // APERÇU PHOTO
+        // ====================================================
+        // PHOTO DE FOND — liquidGlassSource pour que le verre la capte
+        // ====================================================
         val uri = photoUri
         if (uri != null) {
             val bmp = remember(uri) { ImageUtils.loadFromUri(context, uri) }
@@ -108,7 +113,9 @@ fun EditScreen(
                     bitmap = it.asImageBitmap(),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .liquidGlassSource(glassState)
                 )
             }
         } else {
@@ -120,7 +127,8 @@ fun EditScreen(
                             listOf(Color(0xFF2C2C3E), Color(0xFF0A0A15))
                         )
                     )
-                    .clickable { pickImage.launch("image/*") },
+                    .clickable { pickImage.launch("image/*") }
+                    .liquidGlassSource(glassState),
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -130,7 +138,9 @@ fun EditScreen(
             }
         }
 
-        // HORLOGE
+        // ====================================================
+        // HORLOGE AVEC GLASSCARD
+        // ====================================================
         val clockY = if (screenHeightPx > 0f) {
             (screenHeightPx * clockPosY).coerceIn(
                 with(density) { 60.dp.toPx() },
@@ -151,9 +161,7 @@ fun EditScreen(
                     .wrapContentSize()
                     .pointerInput(screenHeightPx) {
                         detectDragGestures(
-                            onDragStart = {
-                                if (hapticEnabled) triggerHapticLongPress(haptic)
-                            }
+                            onDragStart = { if (hapticEnabled) triggerHapticLongPress(haptic) }
                         ) { change, dragAmount ->
                             change.consume()
                             if (screenHeightPx > 0f && !isResizing) {
@@ -163,9 +171,7 @@ fun EditScreen(
                                         screenHeightPx - with(density) { 350.dp.toPx() }
                                     )
                                 clockPosY = newY / screenHeightPx
-                                if (hapticEnabled && abs(dragAmount.y) > 4f) {
-                                    triggerHapticMove(haptic)
-                                }
+                                if (hapticEnabled && abs(dragAmount.y) > 4f) triggerHapticMove(haptic)
                             }
                         }
                     }
@@ -185,24 +191,21 @@ fun EditScreen(
                         colorKey = clockColor,
                         scale = clockScale,
                         is24h = clock24h,
+                        glassState = glassState,
                         style = clockStyle,
                         glassIntensity = glassIntensity,
-                        glassThickness = glassThickness,
                         hapticEnabled = false,
                         tinted = glassTinted
                     )
 
-                    // Resize handle
+                    // Resize handle (bas centre)
                     Box(
                         Modifier
-                            .align(Alignment.BottomEnd)
-                            .offset(x = 8.dp, y = 8.dp)
-                            .size(28.dp)
-                            .clip(CircleShape)
-                            .background(
-                                if (isResizing) Color.White else Color.White.copy(alpha = 0.85f)
-                            )
-                            .border(2.dp, Color.White.copy(alpha = 0.5f), CircleShape)
+                            .align(Alignment.BottomCenter)
+                            .offset(y = 14.dp)
+                            .size(24.dp)
+                            .clip(androidx.compose.foundation.shape.CircleShape)
+                            .background(if (isResizing) Color.White else Color.White.copy(alpha = 0.85f))
                             .pointerInput(Unit) {
                                 detectDragGestures(
                                     onDragStart = {
@@ -217,9 +220,7 @@ fun EditScreen(
                                     val newScale = (clockScale + delta).coerceIn(0.6f, 1.5f)
                                     if (newScale != clockScale) {
                                         clockScale = newScale
-                                        if (hapticEnabled && abs(delta) > 0.005f) {
-                                            triggerHapticMove(haptic)
-                                        }
+                                        if (hapticEnabled && abs(delta) > 0.005f) triggerHapticMove(haptic)
                                     }
                                 }
                             },
@@ -227,8 +228,8 @@ fun EditScreen(
                     ) {
                         Box(
                             Modifier
-                                .size(8.dp)
-                                .clip(CircleShape)
+                                .size(6.dp)
+                                .clip(androidx.compose.foundation.shape.CircleShape)
                                 .background(Color.Black.copy(alpha = 0.5f))
                         )
                     }
@@ -236,7 +237,9 @@ fun EditScreen(
             }
         }
 
+        // ====================================================
         // BARRE DU BAS
+        // ====================================================
         Row(
             Modifier
                 .align(Alignment.BottomCenter)
@@ -256,10 +259,7 @@ fun EditScreen(
             Box(
                 Modifier
                     .clip(RoundedCornerShape(50))
-                    .background(
-                        if (photoUri != null && !isProcessing) IOSColors.Accent
-                        else IOSColors.AccentSecondary
-                    )
+                    .background(if (photoUri != null && !isProcessing) IOSColors.Accent else IOSColors.AccentSecondary)
                     .clickableNoRipple {
                         val u = photoUri
                         if (u != null && !isProcessing) {
@@ -270,18 +270,9 @@ fun EditScreen(
                                 val subjectPath = DepthEffect.extractSubject(context, u)
                                 if (wallpaperPath != null) {
                                     onSave(
-                                        wallpaperPath,
-                                        subjectPath,
-                                        clockFont,
-                                        clockColor,
-                                        clockScale,
-                                        clock24h,
-                                        clockPosY,
-                                        glassIntensity,
-                                        glassThickness,
-                                        glassTinted,
-                                        hapticEnabled,
-                                        clockStyle
+                                        wallpaperPath, subjectPath, clockFont, clockColor,
+                                        clockScale, clock24h, clockPosY, glassIntensity,
+                                        glassThickness, glassTinted, hapticEnabled, clockStyle
                                     )
                                 }
                                 isProcessing = false
