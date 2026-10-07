@@ -13,8 +13,10 @@ class WallpaperStore(private val context: Context) {
 
     companion object {
         private val KEY_WALLPAPER = stringPreferencesKey("wallpaper_path")
+        private val KEY_SUBJECT = stringPreferencesKey("subject_path")
     }
 
+    // ---------- Wallpaper ----------
     val wallpaperPathFlow: Flow<String?> = context.dataStore.data
         .map { prefs -> prefs[KEY_WALLPAPER] }
 
@@ -22,6 +24,17 @@ class WallpaperStore(private val context: Context) {
         context.dataStore.edit { prefs ->
             if (path == null) prefs.remove(KEY_WALLPAPER)
             else prefs[KEY_WALLPAPER] = path
+        }
+    }
+
+    // ---------- Sujet découpé (Depth Effect) ----------
+    val subjectPathFlow: Flow<String?> = context.dataStore.data
+        .map { prefs -> prefs[KEY_SUBJECT] }
+
+    suspend fun setSubjectPath(path: String?) {
+        context.dataStore.edit { prefs ->
+            if (path == null) prefs.remove(KEY_SUBJECT)
+            else prefs[KEY_SUBJECT] = path
         }
     }
 }
