@@ -34,9 +34,7 @@ fun EditorApp() {
     var wallpaperPath by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
-        store.wallpaperPathFlow.collect { path ->
-            wallpaperPath = path
-        }
+        store.wallpaperPathFlow.collect { wallpaperPath = it }
     }
 
     val permLauncher = rememberLauncherForActivityResult(
@@ -71,15 +69,19 @@ fun EditorApp() {
         )
         "edit" -> EditScreen(
             onCancel = { currentScreen = "home" },
-            onSave = { wallpaperPath, subjectPath, font, color, scale, is24h, posY ->
+            onSave = { wp, sp, font, color, scale, is24h, posY, gi, gt, gTint, hap ->
                 scope.launch {
-                    store.setWallpaperPath(wallpaperPath)
-                    store.setSubjectPath(subjectPath)
+                    store.setWallpaperPath(wp)
+                    store.setSubjectPath(sp)
                     store.setClockFont(font)
                     store.setClockColor(color)
                     store.setClockScale(scale)
                     store.setClock24h(is24h)
                     store.setClockPositionY(posY)
+                    store.setGlassIntensity(gi)
+                    store.setGlassThickness(gt)
+                    store.setGlassTinted(gTint)
+                    store.setHapticEnabled(hap)
                 }
                 currentScreen = "home"
             }
