@@ -25,6 +25,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import com.example.ioslock.util.ImageUtils
+import io.github.nadeemiqbal.liquidglass.liquidGlassSource
+import io.github.nadeemiqbal.liquidglass.rememberLiquidGlassState
 import kotlinx.coroutines.delay
 import java.util.Date
 import kotlin.math.abs
@@ -50,6 +52,8 @@ fun LockScreen(
     val configuration = LocalConfiguration.current
     val density = LocalDensity.current
     val screenHeightPx = with(density) { configuration.screenHeightDp.dp.toPx() }
+
+    val glassState = rememberLiquidGlassState()
 
     var dragOffset by remember { mutableStateOf(0f) }
     var isDismissing by remember { mutableStateOf(false) }
@@ -109,14 +113,17 @@ fun LockScreen(
             }
     ) {
 
-        // FOND
+        // FOND — liquidGlassSource
         if (wallpaperBmp != null) {
             if (hasDepth && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 Image(
                     bitmap = wallpaperBmp.asImageBitmap(),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize().blur(20.dp)
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .blur(20.dp)
+                        .liquidGlassSource(glassState)
                 )
                 Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.25f)))
             } else {
@@ -124,14 +131,19 @@ fun LockScreen(
                     bitmap = wallpaperBmp.asImageBitmap(),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .liquidGlassSource(glassState)
                 )
             }
         } else {
             Box(
-                Modifier.fillMaxSize().background(
-                    Brush.verticalGradient(listOf(Color(0xFF1C1C2E), Color.Black))
-                )
+                Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(listOf(Color(0xFF1C1C2E), Color.Black))
+                    )
+                    .liquidGlassSource(glassState)
             )
         }
 
@@ -155,15 +167,15 @@ fun LockScreen(
                 colorKey = clockColor,
                 scale = clockScale,
                 is24h = clock24h,
+                glassState = glassState,
                 style = clockStyle,
                 glassIntensity = glassIntensity,
-                glassThickness = glassThickness,
                 hapticEnabled = false,
                 tinted = glassTinted
             )
         }
 
-        // SUJET (depth effect)
+        // SUJET
         if (subjectBmp != null) {
             Image(
                 bitmap = subjectBmp.asImageBitmap(),
