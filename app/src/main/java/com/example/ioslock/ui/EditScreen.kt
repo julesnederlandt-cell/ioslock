@@ -37,7 +37,15 @@ import java.util.Date
 @Composable
 fun EditScreen(
     onCancel: () -> Unit,
-    onSave: (wallpaperPath: String, subjectPath: String?) -> Unit
+    onSave: (
+        wallpaperPath: String,
+        subjectPath: String?,
+        font: String,
+        color: String,
+        scale: Float,
+        is24h: Boolean,
+        posY: Float
+    ) -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -56,9 +64,7 @@ fun EditScreen(
     var clockPosY by remember { mutableStateOf(0.15f) }
     var showClockPanel by remember { mutableStateOf(false) }
 
-    // Hauteur réelle de l'écran en pixels
     var screenHeightPx by remember { mutableStateOf(0f) }
-    val screenHeightDp = configuration.screenHeightDp.dp
 
     LaunchedEffect(Unit) {
         while (true) {
@@ -202,7 +208,15 @@ fun EditScreen(
                                 val subjectPath = DepthEffect.extractSubject(context, u)
 
                                 if (wallpaperPath != null) {
-                                    onSave(wallpaperPath, subjectPath)
+                                    onSave(
+                                        wallpaperPath,
+                                        subjectPath,
+                                        clockFont,
+                                        clockColor,
+                                        clockScale,
+                                        clock24h,
+                                        clockPosY
+                                    )
                                 }
                                 isProcessing = false
                             }
