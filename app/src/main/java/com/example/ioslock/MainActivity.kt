@@ -72,8 +72,11 @@ fun EditorApp() {
         )
         "edit" -> EditScreen(
             onCancel = { currentScreen = "home" },
-            onSave = { path ->
-                scope.launch { store.setWallpaperPath(path) }
+            onSave = { wallpaperPath, subjectPath ->
+                scope.launch {
+                    store.setWallpaperPath(wallpaperPath)
+                    store.setSubjectPath(subjectPath)
+                }
                 currentScreen = "home"
             }
         )
