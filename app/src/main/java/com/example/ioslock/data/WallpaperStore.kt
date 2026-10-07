@@ -21,8 +21,8 @@ class WallpaperStore(private val context: Context) {
         private val KEY_CLOCK_SCALE = floatPreferencesKey("clock_scale")
         private val KEY_CLOCK_POSITION_Y = floatPreferencesKey("clock_pos_y")
         private val KEY_CLOCK_24H = intPreferencesKey("clock_24h")
+        private val KEY_CLOCK_STYLE = stringPreferencesKey("clock_style")
 
-        // Nouveaux réglages Liquid Glass
         private val KEY_GLASS_INTENSITY = floatPreferencesKey("glass_intensity")
         private val KEY_GLASS_THICKNESS = floatPreferencesKey("glass_thickness")
         private val KEY_GLASS_TINTED = intPreferencesKey("glass_tinted")
@@ -38,6 +38,12 @@ class WallpaperStore(private val context: Context) {
         const val DEFAULT_GLASS_THICKNESS = 1.0f
         const val DEFAULT_GLASS_TINTED = 0
         const val DEFAULT_HAPTIC_ENABLED = 1
+
+        // Style d'horloge : "classic" | "capsule" | "glass"
+        const val STYLE_CLASSIC = "classic"
+        const val STYLE_CAPSULE = "capsule"
+        const val STYLE_GLASS = "glass"
+        const val DEFAULT_CLOCK_STYLE = STYLE_CAPSULE
     }
 
     // ---------- Wallpaper ----------
@@ -80,6 +86,12 @@ class WallpaperStore(private val context: Context) {
     val clock24hFlow: Flow<Boolean> = context.dataStore.data.map { (it[KEY_CLOCK_24H] ?: DEFAULT_24H) == 1 }
     suspend fun setClock24h(value: Boolean) {
         context.dataStore.edit { it[KEY_CLOCK_24H] = if (value) 1 else 0 }
+    }
+
+    // ---------- Horloge : STYLE ----------
+    val clockStyleFlow: Flow<String> = context.dataStore.data.map { it[KEY_CLOCK_STYLE] ?: DEFAULT_CLOCK_STYLE }
+    suspend fun setClockStyle(value: String) {
+        context.dataStore.edit { it[KEY_CLOCK_STYLE] = value }
     }
 
     // ---------- Liquid Glass : intensité ----------
