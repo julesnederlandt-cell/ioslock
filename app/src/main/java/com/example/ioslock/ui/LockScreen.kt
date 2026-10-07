@@ -1,5 +1,6 @@
 package com.example.ioslock.ui
 
+import androidx.compose.material3.Text
 import androidx.activity.ComponentActivity
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
