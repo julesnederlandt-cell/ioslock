@@ -27,8 +27,14 @@ class LockActivity : ComponentActivity() {
         setContent {
             val context = LocalContext.current
             val store = remember { WallpaperStore(context) }
+
             var wallpaperPath by remember { mutableStateOf<String?>(null) }
             var subjectPath by remember { mutableStateOf<String?>(null) }
+            var clockFont by remember { mutableStateOf(WallpaperStore.DEFAULT_FONT) }
+            var clockColor by remember { mutableStateOf(WallpaperStore.DEFAULT_COLOR) }
+            var clockScale by remember { mutableStateOf(WallpaperStore.DEFAULT_SCALE) }
+            var clock24h by remember { mutableStateOf(WallpaperStore.DEFAULT_24H == 1) }
+            var clockPosY by remember { mutableStateOf(WallpaperStore.DEFAULT_POSITION_Y) }
 
             LaunchedEffect(Unit) {
                 store.wallpaperPathFlow.collect { wallpaperPath = it }
@@ -36,10 +42,30 @@ class LockActivity : ComponentActivity() {
             LaunchedEffect(Unit) {
                 store.subjectPathFlow.collect { subjectPath = it }
             }
+            LaunchedEffect(Unit) {
+                store.clockFontFlow.collect { clockFont = it }
+            }
+            LaunchedEffect(Unit) {
+                store.clockColorFlow.collect { clockColor = it }
+            }
+            LaunchedEffect(Unit) {
+                store.clockScaleFlow.collect { clockScale = it }
+            }
+            LaunchedEffect(Unit) {
+                store.clock24hFlow.collect { clock24h = it }
+            }
+            LaunchedEffect(Unit) {
+                store.clockPositionYFlow.collect { clockPosY = it }
+            }
 
             LockScreen(
                 wallpaperPath = wallpaperPath,
-                subjectPath = subjectPath
+                subjectPath = subjectPath,
+                clockFont = clockFont,
+                clockColor = clockColor,
+                clockScale = clockScale,
+                clock24h = clock24h,
+                clockPositionY = clockPosY
             )
         }
     }
