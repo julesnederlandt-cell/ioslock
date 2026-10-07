@@ -6,6 +6,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
@@ -18,8 +19,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -27,9 +32,7 @@ import com.example.ioslock.util.DepthEffect
 import com.example.ioslock.util.ImageUtils
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
 import java.util.Date
-import java.util.Locale
 
 @Composable
 fun EditScreen(
@@ -38,10 +41,24 @@ fun EditScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val configuration = LocalConfiguration.current
+    val density = LocalDensity.current
 
     var photoUri by remember { mutableStateOf<Uri?>(null) }
     var now by remember { mutableStateOf(Date()) }
     var isProcessing by remember { mutableStateOf(false) }
+
+    // État de personnalisation de l'horloge
+    var clockFont by remember { mutableStateOf("default") }
+    var clockColor by remember { mutableStateOf("white") }
+    var clockScale by remember { mutableStateOf(1.0f) }
+    var clock24h by remember { mutableStateOf(true) }
+    var clockPosY by remember { mutableStateOf(0.15f) }
+    var showClockPanel by remember { mutableStateOf(false) }
+
+    // Hauteur réelle de l'écran en pixels
+    var screenHeightPx by remember { mutableStateOf(0f) }
+    val screenHeightDp = configuration.screenHeightDp.dp
 
     LaunchedEffect(Unit) {
         while (true) {
@@ -54,7 +71,14 @@ fun EditScreen(
         ActivityResultContracts.GetContent()
     ) { uri -> uri?.let { photoUri = it } }
 
-    Box(Modifier.fillMaxSize().background(Color.Black)) {
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+            .onSizeChanged { size ->
+                screenHeightPx = size.height.toFloat()
+            }
+    ) {
 
         // ========================================================
         // APERÇU PHOTO
@@ -94,26 +118,50 @@ fun EditScreen(
         }
 
         // ========================================================
-        // HORLOGE
+        // HORLOGE DRAGGABLE
         // ========================================================
-        Column(
-            Modifier.fillMaxWidth().padding(top = 80.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+        val clockY = if (screenHeightPx > 0f) {
+            (screenHeightPx * clockPosY).coerceIn(
+                with(density) { 60.dp.toPx() },
+                screenHeightPx - with(density) { 350.dp.toPx() }
+            )
+        } else {
+            with(density) { 80.dp.toPx() }
+        }
+
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .absoluteOffset(y = with(density) { clockY.toDp() })
+                .pointerInput(screenHeightPx) {
+                    detectDragGestures { change, dragAmount ->
+                        change.consume()
+                        if (screenHeightPx > 0f) {
+                            val newY = (clockY + dragAmount.y)
+                                .coerceIn(
+                                    with(density) { 60.dp.toPx() },
+                                    screenHeightPx - with(density) { 350.dp.toPx() }
+                                )
+                            clockPosY = newY / screenHeightPx
+                        }
+                    }
+                },
+            contentAlignment = Alignment.TopCenter
         ) {
-            Text(
-                SimpleDateFormat("EEEE d MMMM", Locale.FRENCH).format(now),
-                color = IOSColors.TextPrimary.copy(alpha = 0.9f),
-                fontSize = IOSTypography.DateSize,
-                fontWeight = FontWeight.Medium
-            )
-            Spacer(Modifier.height(4.dp))
-            Text(
-                SimpleDateFormat("HH:mm", Locale.FRANCE).format(now),
-                color = IOSColors.TextPrimary,
-                fontSize = IOSTypography.ClockSize,
-                fontWeight = FontWeight.Light,
-                letterSpacing = IOSTypography.ClockLetterSpacing
-            )
+            Box(
+                Modifier
+                    .clip(RoundedCornerShape(20.dp))
+                    .clickable { showClockPanel = true }
+                    .padding(16.dp)
+            ) {
+                ClockText(
+                    date = now,
+                    fontKey = clockFont,
+                    colorKey = clockColor,
+                    scale = clockScale,
+                    is24h = clock24h
+                )
+            }
         }
 
         // ========================================================
@@ -137,7 +185,6 @@ fun EditScreen(
                 Text("Photo", color = IOSColors.Accent, fontSize = IOSTypography.BodySize)
             }
 
-            // Bouton "Ajouter" — déclenche segmentation + sauvegarde
             Box(
                 Modifier
                     .clip(RoundedCornerShape(50))
@@ -150,14 +197,10 @@ fun EditScreen(
                         if (u != null && !isProcessing) {
                             isProcessing = true
                             scope.launch {
-                                // 1. Sauvegarde la photo
                                 val wallpaperPath = ImageUtils.saveWallpaperLocally(context, u)
-
-                                // 2. Analyse ML Kit
                                 DepthEffect.clearCache(context)
                                 val subjectPath = DepthEffect.extractSubject(context, u)
 
-                                // 3. Callback
                                 if (wallpaperPath != null) {
                                     onSave(wallpaperPath, subjectPath)
                                 }
@@ -173,6 +216,37 @@ fun EditScreen(
                     fontSize = IOSTypography.BodySize,
                     fontWeight = FontWeight.Medium
                 )
+            }
+        }
+
+        // ========================================================
+        // PANNEAU DE PERSONNALISATION DE L'HORLOGE
+        // ========================================================
+        if (showClockPanel) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.4f))
+                    .clickable { showClockPanel = false }
+            ) {
+                Box(
+                    Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .clickable(enabled = false) { }
+                ) {
+                    ClockCustomizationPanel(
+                        fontKey = clockFont,
+                        colorKey = clockColor,
+                        scale = clockScale,
+                        is24h = clock24h,
+                        onFontChange = { clockFont = it },
+                        onColorChange = { clockColor = it },
+                        onScaleChange = { clockScale = it },
+                        on24hChange = { clock24h = it },
+                        onClose = { showClockPanel = false }
+                    )
+                }
             }
         }
 
