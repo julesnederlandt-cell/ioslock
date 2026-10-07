@@ -36,10 +36,10 @@ class LockActivity : ComponentActivity() {
             var clock24h by remember { mutableStateOf(WallpaperStore.DEFAULT_24H == 1) }
             var clockPosY by remember { mutableStateOf(WallpaperStore.DEFAULT_POSITION_Y) }
             var glassIntensity by remember { mutableStateOf(WallpaperStore.DEFAULT_GLASS_INTENSITY) }
-            var glassThickness by remember { mutableStateOf(WallpaperStore.DEFAULT_GLASS_THICKNESS) }
             var glassTinted by remember { mutableStateOf(WallpaperStore.DEFAULT_GLASS_TINTED == 1) }
             var hapticEnabled by remember { mutableStateOf(WallpaperStore.DEFAULT_HAPTIC_ENABLED == 1) }
             var clockStyle by remember { mutableStateOf(WallpaperStore.DEFAULT_CLOCK_STYLE) }
+            var clockShape by remember { mutableStateOf("rounded") }
 
             LaunchedEffect(Unit) { store.wallpaperPathFlow.collect { wallpaperPath = it } }
             LaunchedEffect(Unit) { store.subjectPathFlow.collect { subjectPath = it } }
@@ -49,7 +49,6 @@ class LockActivity : ComponentActivity() {
             LaunchedEffect(Unit) { store.clock24hFlow.collect { clock24h = it } }
             LaunchedEffect(Unit) { store.clockPositionYFlow.collect { clockPosY = it } }
             LaunchedEffect(Unit) { store.glassIntensityFlow.collect { glassIntensity = it } }
-            LaunchedEffect(Unit) { store.glassThicknessFlow.collect { glassThickness = it } }
             LaunchedEffect(Unit) { store.glassTintedFlow.collect { glassTinted = it } }
             LaunchedEffect(Unit) { store.hapticEnabledFlow.collect { hapticEnabled = it } }
             LaunchedEffect(Unit) { store.clockStyleFlow.collect { clockStyle = it } }
@@ -63,10 +62,10 @@ class LockActivity : ComponentActivity() {
                 clock24h = clock24h,
                 clockPositionY = clockPosY,
                 glassIntensity = glassIntensity,
-                glassThickness = glassThickness,
                 glassTinted = glassTinted,
                 hapticEnabled = hapticEnabled,
-                clockStyle = clockStyle
+                clockStyle = clockStyle,
+                clockShape = clockShape
             )
         }
     }
