@@ -5,10 +5,12 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
@@ -34,6 +36,7 @@ import com.example.ioslock.util.ImageUtils
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.Date
+import kotlin.math.abs
 
 @Composable
 fun EditScreen(
@@ -49,7 +52,8 @@ fun EditScreen(
         glassIntensity: Float,
         glassThickness: Float,
         glassTinted: Boolean,
-        hapticEnabled: Boolean
+        hapticEnabled: Boolean,
+        clockStyle: String
     ) -> Unit
 ) {
     val context = LocalContext.current
@@ -61,20 +65,20 @@ fun EditScreen(
     var now by remember { mutableStateOf(Date()) }
     var isProcessing by remember { mutableStateOf(false) }
 
-    // Horloge
     var clockFont by remember { mutableStateOf("default") }
     var clockColor by remember { mutableStateOf("white") }
     var clockScale by remember { mutableStateOf(1.0f) }
     var clock24h by remember { mutableStateOf(true) }
     var clockPosY by remember { mutableStateOf(0.15f) }
     var showClockPanel by remember { mutableStateOf(false) }
+    var clockStyle by remember { mutableStateOf("capsule") }
 
-    // Liquid Glass
     var glassIntensity by remember { mutableStateOf(0.6f) }
     var glassThickness by remember { mutableStateOf(1.0f) }
     var glassTinted by remember { mutableStateOf(false) }
     var hapticEnabled by remember { mutableStateOf(true) }
 
+    var isResizing by remember { mutableStateOf(false) }
     var screenHeightPx by remember { mutableStateOf(0f) }
 
     LaunchedEffect(Unit) {
@@ -95,9 +99,7 @@ fun EditScreen(
             .onSizeChanged { screenHeightPx = it.height.toFloat() }
     ) {
 
-        // ========================================================
         // APERÇU PHOTO
-        // ========================================================
         val uri = photoUri
         if (uri != null) {
             val bmp = remember(uri) { ImageUtils.loadFromUri(context, uri) }
@@ -128,9 +130,7 @@ fun EditScreen(
             }
         }
 
-        // ========================================================
-        // HORLOGE LIQUID GLASS DRAGGABLE
-        // ========================================================
+        // HORLOGE
         val clockY = if (screenHeightPx > 0f) {
             (screenHeightPx * clockPosY).coerceIn(
                 with(density) { 60.dp.toPx() },
@@ -143,53 +143,100 @@ fun EditScreen(
         Box(
             Modifier
                 .fillMaxWidth()
-                .absoluteOffset(y = with(density) { clockY.toDp() })
-                .pointerInput(screenHeightPx) {
-                    detectDragGestures(
-                        onDragStart = {
-                            if (hapticEnabled) triggerHapticLongPress(haptic)
-                        }
-                    ) { change, dragAmount ->
-                        change.consume()
-                        if (screenHeightPx > 0f) {
-                            val newY = (clockY + dragAmount.y)
-                                .coerceIn(
-                                    with(density) { 60.dp.toPx() },
-                                    screenHeightPx - with(density) { 350.dp.toPx() }
-                                )
-                            clockPosY = newY / screenHeightPx
-                            if (hapticEnabled && kotlin.math.abs(dragAmount.y) > 4f) {
-                                triggerHapticMove(haptic)
+                .absoluteOffset(y = with(density) { clockY.toDp() }),
+            contentAlignment = Alignment.TopCenter
+        ) {
+            Box(
+                Modifier
+                    .wrapContentSize()
+                    .pointerInput(screenHeightPx) {
+                        detectDragGestures(
+                            onDragStart = {
+                                if (hapticEnabled) triggerHapticLongPress(haptic)
+                            }
+                        ) { change, dragAmount ->
+                            change.consume()
+                            if (screenHeightPx > 0f && !isResizing) {
+                                val newY = (clockY + dragAmount.y)
+                                    .coerceIn(
+                                        with(density) { 60.dp.toPx() },
+                                        screenHeightPx - with(density) { 350.dp.toPx() }
+                                    )
+                                clockPosY = newY / screenHeightPx
+                                if (hapticEnabled && abs(dragAmount.y) > 4f) {
+                                    triggerHapticMove(haptic)
+                                }
                             }
                         }
                     }
-                }
-                .pointerInput(Unit) {
-                    detectTapGestures(
-                        onTap = {
-                            if (hapticEnabled) triggerHapticLongPress(haptic)
-                            showClockPanel = true
-                        }
+                    .pointerInput(Unit) {
+                        detectTapGestures(
+                            onTap = {
+                                if (hapticEnabled) triggerHapticLongPress(haptic)
+                                showClockPanel = true
+                            }
+                        )
+                    }
+            ) {
+                Box {
+                    LiquidClock(
+                        date = now,
+                        fontKey = clockFont,
+                        colorKey = clockColor,
+                        scale = clockScale,
+                        is24h = clock24h,
+                        style = clockStyle,
+                        glassIntensity = glassIntensity,
+                        glassThickness = glassThickness,
+                        hapticEnabled = false,
+                        tinted = glassTinted
                     )
-                },
-            contentAlignment = Alignment.TopCenter
-        ) {
-            LiquidClock(
-                date = now,
-                fontKey = clockFont,
-                colorKey = clockColor,
-                scale = clockScale,
-                is24h = clock24h,
-                glassIntensity = glassIntensity,
-                glassThickness = glassThickness,
-                hapticEnabled = false, // le parent gère l'haptique
-                tinted = glassTinted
-            )
+
+                    // Resize handle
+                    Box(
+                        Modifier
+                            .align(Alignment.BottomEnd)
+                            .offset(x = 8.dp, y = 8.dp)
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (isResizing) Color.White else Color.White.copy(alpha = 0.85f)
+                            )
+                            .border(2.dp, Color.White.copy(alpha = 0.5f), CircleShape)
+                            .pointerInput(Unit) {
+                                detectDragGestures(
+                                    onDragStart = {
+                                        isResizing = true
+                                        if (hapticEnabled) triggerHapticLongPress(haptic)
+                                    },
+                                    onDragEnd = { isResizing = false },
+                                    onDragCancel = { isResizing = false }
+                                ) { change, dragAmount ->
+                                    change.consume()
+                                    val delta = (dragAmount.x + dragAmount.y) / 350f
+                                    val newScale = (clockScale + delta).coerceIn(0.6f, 1.5f)
+                                    if (newScale != clockScale) {
+                                        clockScale = newScale
+                                        if (hapticEnabled && abs(delta) > 0.005f) {
+                                            triggerHapticMove(haptic)
+                                        }
+                                    }
+                                }
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Box(
+                            Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(Color.Black.copy(alpha = 0.5f))
+                        )
+                    }
+                }
+            }
         }
 
-        // ========================================================
         // BARRE DU BAS
-        // ========================================================
         Row(
             Modifier
                 .align(Alignment.BottomCenter)
@@ -203,11 +250,9 @@ fun EditScreen(
             TextButton(onClick = onCancel, enabled = !isProcessing) {
                 Text("Annuler", color = IOSColors.TextPrimary, fontSize = IOSTypography.BodySize)
             }
-
             TextButton(onClick = { pickImage.launch("image/*") }, enabled = !isProcessing) {
                 Text("Photo", color = IOSColors.Accent, fontSize = IOSTypography.BodySize)
             }
-
             Box(
                 Modifier
                     .clip(RoundedCornerShape(50))
@@ -223,7 +268,6 @@ fun EditScreen(
                                 val wallpaperPath = ImageUtils.saveWallpaperLocally(context, u)
                                 DepthEffect.clearCache(context)
                                 val subjectPath = DepthEffect.extractSubject(context, u)
-
                                 if (wallpaperPath != null) {
                                     onSave(
                                         wallpaperPath,
@@ -236,7 +280,8 @@ fun EditScreen(
                                         glassIntensity,
                                         glassThickness,
                                         glassTinted,
-                                        hapticEnabled
+                                        hapticEnabled,
+                                        clockStyle
                                     )
                                 }
                                 isProcessing = false
@@ -249,9 +294,7 @@ fun EditScreen(
             }
         }
 
-        // ========================================================
-        // PANNEAU DE PERSONNALISATION
-        // ========================================================
+        // PANNEAU
         if (showClockPanel) {
             Box(
                 Modifier
@@ -277,6 +320,7 @@ fun EditScreen(
                         glassThickness = glassThickness,
                         glassTinted = glassTinted,
                         hapticEnabled = hapticEnabled,
+                        clockStyle = clockStyle,
                         onFontChange = { clockFont = it },
                         onColorChange = { clockColor = it },
                         onScaleChange = { clockScale = it },
@@ -285,15 +329,14 @@ fun EditScreen(
                         onGlassThicknessChange = { glassThickness = it },
                         onGlassTintedChange = { glassTinted = it },
                         onHapticEnabledChange = { hapticEnabled = it },
+                        onClockStyleChange = { clockStyle = it },
                         onClose = { showClockPanel = false }
                     )
                 }
             }
         }
 
-        // ========================================================
         // SPINNER
-        // ========================================================
         if (isProcessing) {
             Box(
                 Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.7f)),
