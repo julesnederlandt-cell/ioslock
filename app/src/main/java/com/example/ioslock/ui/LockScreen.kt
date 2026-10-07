@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import com.example.ioslock.util.ImageUtils
 import kotlinx.coroutines.delay
 import java.util.Date
+import kotlin.math.abs
 
 @Composable
 fun LockScreen(
@@ -40,7 +41,8 @@ fun LockScreen(
     glassIntensity: Float,
     glassThickness: Float,
     glassTinted: Boolean,
-    hapticEnabled: Boolean
+    hapticEnabled: Boolean,
+    clockStyle: String
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
@@ -95,12 +97,11 @@ fun LockScreen(
                 ) { _, dragAmount ->
                     if (!isDismissing) {
                         dragOffset = (dragOffset + dragAmount).coerceIn(-screenHeightPx, 0f)
-                        // Haptique toutes les ~80ms pendant le drag
-                        if (hapticEnabled && Math.abs(dragAmount) > 3f) {
-                            val currentTime = System.currentTimeMillis()
-                            if (currentTime - lastHapticTime > 80) {
+                        if (hapticEnabled && abs(dragAmount) > 3f) {
+                            val t = System.currentTimeMillis()
+                            if (t - lastHapticTime > 80) {
                                 triggerHapticMove(haptic)
-                                lastHapticTime = currentTime
+                                lastHapticTime = t
                             }
                         }
                     }
@@ -108,7 +109,7 @@ fun LockScreen(
             }
     ) {
 
-        // COUCHE 1 : FOND
+        // FOND
         if (wallpaperBmp != null) {
             if (hasDepth && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 Image(
@@ -134,7 +135,7 @@ fun LockScreen(
             )
         }
 
-        // COUCHE 2 : HORLOGE LIQUID GLASS
+        // HORLOGE
         val clockY = if (actualHeightPx > 0f) {
             (actualHeightPx * clockPositionY).coerceIn(
                 with(density) { 60.dp.toPx() },
@@ -154,14 +155,15 @@ fun LockScreen(
                 colorKey = clockColor,
                 scale = clockScale,
                 is24h = clock24h,
+                style = clockStyle,
                 glassIntensity = glassIntensity,
                 glassThickness = glassThickness,
-                hapticEnabled = false, // géré par le parent
+                hapticEnabled = false,
                 tinted = glassTinted
             )
         }
 
-        // COUCHE 3 : SUJET
+        // SUJET (depth effect)
         if (subjectBmp != null) {
             Image(
                 bitmap = subjectBmp.asImageBitmap(),
